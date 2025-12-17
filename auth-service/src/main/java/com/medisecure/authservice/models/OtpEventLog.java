@@ -15,6 +15,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "otp_event_log")
@@ -25,11 +26,12 @@ import java.time.LocalDateTime;
 public class OtpEventLog {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long otpId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(columnDefinition = "UUID", updatable = false, nullable = false)
+    private UUID otpId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "authUserId", nullable = false)
+    @JoinColumn(name = "auth_user_id", nullable = false)
     private AuthUserCredentials authUser;
 
     @Column(length = 128)

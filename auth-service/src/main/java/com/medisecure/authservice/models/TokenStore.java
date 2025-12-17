@@ -15,6 +15,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "token_store")
@@ -23,16 +24,18 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class TokenStore {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long tokenId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(columnDefinition = "UUID", updatable = false, nullable = false)
+    private UUID tokenId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "authUserId", nullable = false)
+    @JoinColumn(name = "auth_user_id", referencedColumnName = "auth_user_id", nullable = false)
     private AuthUserCredentials authUser;
 
-    @Column(nullable = false, length = 512)
-    private String refreshToken;
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String tokenString;
 
     @Column(nullable = false)
     private LocalDateTime issuedAt;

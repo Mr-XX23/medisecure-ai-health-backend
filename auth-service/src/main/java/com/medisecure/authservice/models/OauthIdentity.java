@@ -20,6 +20,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "oauth_identity",
@@ -37,11 +38,12 @@ public class OauthIdentity {
     }
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long oauthId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(columnDefinition = "UUID", updatable = false, nullable = false)
+    private UUID oauthId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "authUserId", nullable = false)
+    @JoinColumn(name = "auth_user_id", nullable = false)
     private AuthUserCredentials authUser;
 
     @Column(length = 16, nullable = false)

@@ -19,6 +19,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "auth_user_credentials")
@@ -31,7 +32,8 @@ public class AuthUserCredentials {
     public enum LoginType {
         EMAIL,
         PHONE,
-        THIRD_PARTY
+        THIRD_PARTY,
+        BOTH
     }
 
     public enum Status {
@@ -42,19 +44,23 @@ public class AuthUserCredentials {
     }
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long authUserId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "auth_user_id", columnDefinition = "UUID", updatable = false, nullable = false)
+    private UUID authUserId;
+
+    @Column(unique = true, nullable = false, updatable = false, length = 20)
+    @NotBlank( message = "Username is mandatory")
+    private String username;
 
     @Email
     @Column(unique = true, length = 100)
-    @NotBlank(message = "Email is mandatory")
     private String email;
 
     @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format")
     @Column(unique = true, length = 20)
     private String phoneNumber;
 
-    @Column(length = 255)
+    @Column(length = 256)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)

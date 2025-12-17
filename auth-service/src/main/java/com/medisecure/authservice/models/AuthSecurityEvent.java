@@ -15,6 +15,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "security_events")
@@ -24,8 +25,9 @@ import java.time.LocalDateTime;
 @Builder
 public class AuthSecurityEvent {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long eventId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(columnDefinition = "UUID", updatable = false, nullable = false)
+    private UUID eventId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "auth_user_id")
