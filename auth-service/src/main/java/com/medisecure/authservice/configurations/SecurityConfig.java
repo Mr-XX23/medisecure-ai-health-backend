@@ -36,6 +36,10 @@ public class SecurityConfig {
                         .requestMatchers(publicEndpointsConfig.getPublicEndpoints()).permitAll()
                         .anyRequest().authenticated()
                 )
+                .oauth2Login(oauth2 -> oauth2
+                    .loginPage("/oauth2/authorization/google")
+                    .defaultSuccessUrl("/api/v1/auth/oauth2/callback/google", true)
+                )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService, publicEndpointsConfig.getPublicEndpoints()),
                         UsernamePasswordAuthenticationFilter.class);

@@ -48,6 +48,9 @@ public class AuthUserCredentials {
     @Column(name = "auth_user_id", columnDefinition = "UUID", updatable = false, nullable = false)
     private UUID authUserId;
 
+    @Column(unique = true, length = 100, updatable = false)
+    private String googleId;
+
     @Column(unique = true, nullable = false, updatable = false, length = 20)
     @NotBlank( message = "Username is mandatory")
     private String username;

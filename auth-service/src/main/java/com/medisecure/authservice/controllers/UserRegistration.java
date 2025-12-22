@@ -7,6 +7,8 @@ import com.medisecure.authservice.dto.phone.PhoneVerificationRequest;
 import com.medisecure.authservice.dto.userregistrations.RegistrationRequest;
 import com.medisecure.authservice.dto.userregistrations.RegistrationResponse;
 import com.medisecure.authservice.services.UserRegistrationService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -28,9 +30,9 @@ public class UserRegistration {
      * @return A response entity with registration status.
      */
     @PostMapping("/register")
-    public ResponseEntity<RegistrationResponse> registerUser(@Valid @RequestBody RegistrationRequest request) {
+    public ResponseEntity<RegistrationResponse> registerUser(HttpServletRequest httpRequest, @Valid @RequestBody RegistrationRequest request) {
 
-        RegistrationResponse response = registrationService.registerUser(request);
+        RegistrationResponse response = registrationService.registerUser(request, httpRequest);
         return ResponseEntity.ok(response);
     }
     /**
@@ -39,8 +41,8 @@ public class UserRegistration {
      * @return A response entity with verification status.
      */
     @PostMapping("/send-email-verification")
-    public ResponseEntity<RegistrationResponse> sendEmailVerification(@Valid @RequestBody EmailVerificationRequest request) {
-        RegistrationResponse response = registrationService.sendEmailVerification(request.getUserId());
+    public ResponseEntity<RegistrationResponse> sendEmailVerification(@Valid @RequestBody EmailVerificationRequest request, HttpServletRequest httpRequest) {
+        RegistrationResponse response = registrationService.sendEmailVerification(request.getUserId(), httpRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -50,8 +52,8 @@ public class UserRegistration {
      * @return A response entity with verification status.
      */
     @PostMapping("/send-phone-verification")
-    public ResponseEntity<RegistrationResponse> sendPhoneVerification(@Valid @RequestBody PhoneVerificationRequest request) {
-        RegistrationResponse response = registrationService.sendPhoneVerification(request.getUserId());
+    public ResponseEntity<RegistrationResponse> sendPhoneVerification(@Valid @RequestBody PhoneVerificationRequest request, HttpServletRequest httpRequest) {
+        RegistrationResponse response = registrationService.sendPhoneVerification(request.getUserId(), httpRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -62,9 +64,9 @@ public class UserRegistration {
      */
     @GetMapping("/verify-email")
     public ResponseEntity<RegistrationResponse> verifyEmail(
-            @RequestParam("token") @NotBlank(message = "Token is required") String token) {
+            @RequestParam("token") @NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
 
-        RegistrationResponse response = registrationService.verifyEmail(token);
+        RegistrationResponse response = registrationService.verifyEmail(token, httpRequest);
 
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
 
@@ -80,9 +82,9 @@ public class UserRegistration {
     @PostMapping("/verify-phone")
     public ResponseEntity<RegistrationResponse> verifyPhone(
             @RequestBody @NotBlank(message = "OTP is required") String otp,
-            @NotBlank(message = "ID is required") String userId) {
+            @NotBlank(message = "ID is required") String userId, HttpServletRequest httpRequest) {
 
-        RegistrationResponse response = registrationService.verifyPhone(userId, otp);
+        RegistrationResponse response = registrationService.verifyPhone(userId, otp, httpRequest);
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(response);
 
@@ -95,8 +97,8 @@ public class UserRegistration {
      */
     @PostMapping("/reset-password")
     public ResponseEntity<RegistrationResponse> resetPassword(
-            @Valid @RequestBody PasswordResetRequest request) {
-        RegistrationResponse response = registrationService.resetPassword(request.getUserContact());
+            @Valid @RequestBody PasswordResetRequest request, HttpServletRequest httpRequest) {
+        RegistrationResponse response = registrationService.resetPassword(request.getUserContact(), httpRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -109,12 +111,11 @@ public class UserRegistration {
     @PostMapping("/confirm-reset")
     public ResponseEntity<RegistrationResponse> confirmPasswordReset(
             @RequestParam("token") @NotBlank(message = "Token is required") String token,
-            @Valid @RequestBody PasswordResetConfirmRequest request) {
+            @Valid @RequestBody PasswordResetConfirmRequest request, HttpServletRequest httpRequest) {
 
-        RegistrationResponse response = registrationService.confirmPasswordReset(token, request.getNewPassword());
+        RegistrationResponse response = registrationService.confirmPasswordReset(token, request.getNewPassword(), httpRequest);
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(response);
     }
-
 
 }

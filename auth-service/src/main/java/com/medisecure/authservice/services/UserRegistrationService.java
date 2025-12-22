@@ -9,6 +9,7 @@ import com.medisecure.authservice.models.PasswordResetToken;
 import com.medisecure.authservice.repository.OtpEventLogRepository;
 import com.medisecure.authservice.repository.PasswordResetTokenRepository;
 import com.medisecure.authservice.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -38,6 +39,7 @@ public class UserRegistrationService {
     private final OtpEventLogRepository otpEventLogRepository;
     private final HashFormater hashFormater;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final AuthSecurityEventService securityEventService;
 
 
     /**
@@ -47,11 +49,28 @@ public class UserRegistrationService {
      */
 
     @Transactional
-    public RegistrationResponse registerUser(@Valid RegistrationRequest request) {
+    public RegistrationResponse registerUser(@Valid RegistrationRequest request, HttpServletRequest httpRequest) {
 
         try {
+
+            // Log security event for registration attempt
+            securityEventService.logSecurityEvent(
+                    null,
+                    "USER_REGISTRATION_ATTEMPT",
+                    "A user registration attempt is made.",
+                    httpRequest
+            );
+
             // Validate that at least one contact method is provided
             if (request.getEmail() == null && request.getPhoneNumber() == null) {
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "USER_REGISTRATION_FAILED",
+                        "Registration failed due to missing contact information.",
+                        httpRequest
+                );
+
                 throw new BadRequestException("Either email or phone number must be provided");
             }
 
@@ -71,14 +90,21 @@ public class UserRegistrationService {
 
             if (exists) {
                 log.warn("Registration attempt with existing credentials");
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "USER_REGISTRATION_FAILED",
+                        "Registration failed due to existing user credentials.",
+                        httpRequest
+                );
+
                 // Return generic success response for privacy
                 return buildGenericResponse(loginType);
             }
 
-
             // hash the password
             String passwordHash = passwordEncoder.encode(request.getPassword());
-
 
             // Create new auth user credentials
             AuthUserCredentials authUserCredentials = AuthUserCredentials.builder()
@@ -101,8 +127,25 @@ public class UserRegistrationService {
                 savedUser = userRepository.save(authUserCredentials);
             } catch (Exception e) {
                 log.error("Error saving user: {}", e.getMessage());
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "USER_REGISTRATION_FAILED",
+                        "Registration failed due to server error.",
+                        httpRequest
+                );
+
                 throw new RuntimeException("Failed to register user. Please try again.");
             }
+
+            // Log security event for successful registration
+            securityEventService.logSecurityEvent(
+                    savedUser,
+                    "USER_REGISTRATION_SUCCESS",
+                    "A new user has been registered successfully.",
+                    httpRequest
+            );
 
             // Send verification
             try {
@@ -115,6 +158,15 @@ public class UserRegistrationService {
                 }
             } catch (Exception e) {
                 log.error("Error sending verification: {}", e.getMessage());
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "USER_REGISTRATION_FAILED",
+                        "Registration failed due to verification sending error.",
+                        httpRequest
+                );
+
                 throw new RuntimeException("Failed to register user. Please try again.");
             }
 
@@ -127,6 +179,15 @@ public class UserRegistrationService {
                     .build();
 
         } catch ( Exception e ) {
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "USER_REGISTRATION_FAILED",
+                    "Registration failed due to server error.",
+                    httpRequest
+            );
+
             throw new RuntimeException("Failed to register user. Please try again.");
         }
     }
@@ -196,12 +257,30 @@ public class UserRegistrationService {
      */
 
     @Transactional
-    public RegistrationResponse sendEmailVerification(UUID userId) {
+    public RegistrationResponse sendEmailVerification(UUID userId, HttpServletRequest httpRequest) {
         try {
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "EMAIL_VERIFICATION",
+                    "An email verification attempt is made to send verification link.",
+                    httpRequest
+            );
+
             AuthUserCredentials user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             if (user.isEmailVerified()) {
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "EMAIL_VERIFICATION",
+                        "Email verification attempt for already verified email.",
+                        httpRequest
+                );
+
                 throw new BadRequestException("Email already verified");
             }
 
@@ -218,6 +297,15 @@ public class UserRegistrationService {
 
         } catch (Exception e) {
             log.error("Error sending verification email: {}", e.getMessage());
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "EMAIL_VERIFICATION",
+                    "Error sending verification email.",
+                    httpRequest
+            );
+
             throw new BadRequestException("Error sending verification email. Please try again.");
         }
     }
@@ -229,19 +317,45 @@ public class UserRegistrationService {
      */
 
     @Transactional
-    public RegistrationResponse sendPhoneVerification(UUID userId) {
+    public RegistrationResponse sendPhoneVerification(UUID userId, HttpServletRequest httpRequest) {
 
         log.info("Sending phone verification to user ID: {}", userId);
 
         try {
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PHONE_VERIFICATION",
+                    "A phone verification attempt is made to send OTP.",
+                    httpRequest
+            );
+
             AuthUserCredentials user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             if (user.isPhoneVerified()) {
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "PHONE_VERIFICATION",
+                        "Phone verification attempt for already verified phone.",
+                        httpRequest
+                );
+
                 throw new BadRequestException("Phone already verified");
             }
 
             if (user.getLoginType() == AuthUserCredentials.LoginType.BOTH && !user.isEmailVerified()) {
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "PHONE_VERIFICATION",
+                        "Phone verification attempt before email is verified.",
+                        httpRequest
+                );
+
                 throw new BadRequestException("Email should verified before phone verification");
             }
 
@@ -257,6 +371,15 @@ public class UserRegistrationService {
                     .build();
         } catch (Exception e) {
             log.error("Error sending phone OTP: {}", e.getMessage());
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PHONE_VERIFICATION",
+                    "Error sending phone OTP.",
+                    httpRequest
+            );
+
             throw new RuntimeException("Error sending phone OTP. Please try again.");
         }
     }
@@ -268,8 +391,17 @@ public class UserRegistrationService {
      */
 
     @Transactional
-    public RegistrationResponse verifyEmail(@NotBlank(message = "Token is required") String token) {
+    public RegistrationResponse verifyEmail(@NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
         try {
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "EMAIL_VERIFICATION",
+                    "An email verification attempt is made for activations of account.",
+                    httpRequest
+            );
+
             // Hash the token to match stored hash
             String tokenHash = hashFormater.hashWithSHA256(token);
 
@@ -283,6 +415,15 @@ public class UserRegistrationService {
                     .orElse(null);
 
             if (otpLog == null) {
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "EMAIL_VERIFICATION",
+                        "Invalid email verification attempt.",
+                        httpRequest
+                );
+
                 throw new BadRequestException("Invalid token or Cannot be empty");
             }
 
@@ -321,6 +462,15 @@ public class UserRegistrationService {
                     .build();
         } catch ( Exception e) {
             log.error("Error verifying email: {}", e.getMessage());
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "EMAIL_VERIFICATION",
+                    "Error verifying email.",
+                    httpRequest
+            );
+
             throw new RuntimeException("Error verifying email. Please try again.");
         }
     }
@@ -332,8 +482,16 @@ public class UserRegistrationService {
      */
 
     @Transactional
-    public RegistrationResponse verifyPhone(@NotBlank(message = "Token is required") String token, @NotBlank(message = "User ID is required") String userId) {
+    public RegistrationResponse verifyPhone(@NotBlank(message = "Token is required") String token, @NotBlank(message = "User ID is required") String userId, HttpServletRequest httpRequest) {
         try {
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PHONE_VERIFICATION",
+                    "A phone verification attempt is made to activate account.",
+                    httpRequest
+            );
 
             UUID userUuid = UUID.fromString(userId);
 
@@ -354,11 +512,27 @@ public class UserRegistrationService {
 
 
             if (otpLog == null) {
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "PHONE_VERIFICATION",
+                        "Invalid phone verification attempt.",
+                        httpRequest
+                );
+
                 throw new BadRequestException("Invalid token or Cannot be empty");
             }
 
             // Verify OTP using bcrypt matching
             if (!passwordEncoder.matches(token, otpLog.getOtpCode())) {
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "PHONE_VERIFICATION",
+                        "Invalid phone verification attempt.",
+                        httpRequest
+                );
                 throw new BadRequestException("Invalid token or Cannot be empty");
             }
 
@@ -396,9 +570,25 @@ public class UserRegistrationService {
 
         } catch (IllegalArgumentException e) {
             log.error("Invalid user ID format: {}", e.getMessage());
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PHONE_VERIFICATION",
+                    "Invalid user ID format during phone verification attempt.",
+                    httpRequest
+            );
             throw new IllegalArgumentException("Invalid user ID format. Please try again.");
         } catch (Exception e) {
             log.error("Error verifying phone: {}", e.getMessage());
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PHONE_VERIFICATION",
+                    "Error verifying phone.",
+                    httpRequest
+            );
+
             throw new RuntimeException("Error verifying phone. Please try again.");
         }
     }
@@ -409,8 +599,17 @@ public class UserRegistrationService {
      * @return A response entity with verification status.
      */
     @Transactional
-    public RegistrationResponse resetPassword(String userContact) {
+    public RegistrationResponse resetPassword(String userContact, HttpServletRequest httpRequest) {
         try {
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PASSWORD_RESET_ATTEMPT",
+                    "A password reset attempt is made.",
+                    httpRequest
+            );
+
             // Validate user contact (email or phone)
             AuthUserCredentials user = userRepository.findByEmailOrPhoneNumber(userContact, userContact)
                     .orElseThrow(() -> new RuntimeException("User not found"));
@@ -446,6 +645,15 @@ public class UserRegistrationService {
 
         } catch (Exception e) {
             log.error("Error in password reset: {}", e.getMessage());
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PASSWORD_RESET_ATTEMPT",
+                    "Error in password reset attempt.",
+                    httpRequest
+            );
+
             throw new RuntimeException("Error in password reset. Please try again.");
         }
     }
@@ -456,12 +664,31 @@ public class UserRegistrationService {
      * @return A response entity with verification status.
      */
     @Transactional
-    public RegistrationResponse confirmPasswordReset(String token, String newPassword) {
+    public RegistrationResponse confirmPasswordReset(String token, String newPassword, HttpServletRequest httpRequest) {
         try {
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PASSWORD_RESET_CONFIRMATION",
+                    "A password reset confirmation attempt is made.",
+                    httpRequest
+            );
+
+
             PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
                     .orElseThrow(() -> new BadRequestException("Invalid reset token"));
 
             if (resetToken.isExpired()) {
+
+                // Log security even
+                securityEventService.logSecurityEvent(
+                        null,
+                        "PASSWORD_RESET_CONFIRMATION",
+                        "Expired password reset token used.",
+                        httpRequest
+                );
+
                 throw new BadRequestException("Invalid reset token");
             }
 
@@ -479,6 +706,15 @@ public class UserRegistrationService {
 
         } catch (Exception e) {
             log.error("Error confirming password reset: {}", e.getMessage());
+
+            // Log security even
+            securityEventService.logSecurityEvent(
+                    null,
+                    "PASSWORD_RESET_CONFIRMATION",
+                    "Error confirming password reset.",
+                    httpRequest
+            );
+
             throw new RuntimeException("Error confirming password reset. Please try again.");
         }
     }

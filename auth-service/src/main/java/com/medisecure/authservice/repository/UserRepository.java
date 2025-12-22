@@ -20,4 +20,6 @@ public interface UserRepository extends JpaRepository<AuthUserCredentials, UUID>
     boolean existsByEmailOrPhoneNumber(String email, String phoneNumber);
 
     Optional<AuthUserCredentials> findByEmailOrPhoneNumber(@NotBlank(message = "Email is needed") String email, @NotBlank(message = "Phone number is needed") String phoneNumber);
+
+    Optional<AuthUserCredentials> findByEmail(String email);
 }
