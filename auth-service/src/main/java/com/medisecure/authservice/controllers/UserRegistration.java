@@ -8,7 +8,6 @@ import com.medisecure.authservice.dto.userregistrations.RegistrationRequest;
 import com.medisecure.authservice.dto.userregistrations.RegistrationResponse;
 import com.medisecure.authservice.services.UserRegistrationService;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;

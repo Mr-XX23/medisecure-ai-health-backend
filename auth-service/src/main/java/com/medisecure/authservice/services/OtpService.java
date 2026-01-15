@@ -28,8 +28,6 @@ public class OtpService {
     private final OtpEventLogRepository otpEventLogRepository;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private final PasswordEncoder passwordEncoder;
-
-    private static final int PHONE_OTP_LENGTH = 6;
     private static final int MAX_RETRY_ATTEMPTS = 5;
 
 

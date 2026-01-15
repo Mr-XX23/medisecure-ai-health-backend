@@ -1,0 +1,6 @@
+.env
+.vscode
+.idea
+init-db
+docker-compose.yml
+

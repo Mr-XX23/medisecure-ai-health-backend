@@ -1,6 +1,5 @@
 package com.medisecure.authservice.services;
 
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 import java.security.MessageDigest;

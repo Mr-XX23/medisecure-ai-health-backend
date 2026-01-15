@@ -1,4 +1,4 @@
-package com.medisecure.gatewayserver;
+package com.medisecure.gatewayservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

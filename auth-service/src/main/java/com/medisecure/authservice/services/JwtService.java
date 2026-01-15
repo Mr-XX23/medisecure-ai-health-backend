@@ -1,6 +1,5 @@
 package com.medisecure.authservice.services;
 
-import com.medisecure.authservice.exceptions.ForbiddenException;
 import com.medisecure.authservice.exceptions.UnauthorizedException;
 import com.medisecure.authservice.models.AuthUserCredentials;
 import lombok.RequiredArgsConstructor;

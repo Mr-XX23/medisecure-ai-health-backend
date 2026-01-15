@@ -1,6 +1,5 @@
 package com.medisecure.authservice.configurations;
 
-import com.medisecure.authservice.services.CookiesService;
 import com.medisecure.authservice.services.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

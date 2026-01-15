@@ -2,7 +2,6 @@ package com.medisecure.authservice.services;
 
 import com.medisecure.authservice.dto.loginregistration.OAuth2LoginResponse;
 import com.medisecure.authservice.exceptions.BadRequestException;
-import com.medisecure.authservice.models.AuthSecurityEvent;
 import com.medisecure.authservice.models.AuthUserCredentials;
 
 import com.medisecure.authservice.repository.UserRepository;

@@ -80,9 +80,7 @@ public class TokenService {
     @Transactional(readOnly = true)
     public boolean isTokenValid(String token) {
         try {
-            Jwt jwt = jwtService.validateAndDecodeToken(token);
-            String userId = jwt.getClaim("userId");
-
+        
             Optional<TokenStore> tokenStore = tokenStoreRepository
                     .findByTokenStringAndRevokedFalse(token);
 
