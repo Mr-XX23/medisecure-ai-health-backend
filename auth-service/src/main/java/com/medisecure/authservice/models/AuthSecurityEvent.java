@@ -30,7 +30,7 @@ public class AuthSecurityEvent {
     private UUID eventId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "auth_user_id")
+    @JoinColumn(name = "auth_user_id", nullable = true)
     private AuthUserCredentials authUser;
 
     @Column(length = 32, nullable = false)

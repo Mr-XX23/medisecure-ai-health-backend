@@ -125,6 +125,15 @@ public class UserRegistrationService {
             AuthUserCredentials savedUser;
             try {
                 savedUser = userRepository.save(authUserCredentials);
+
+                // Log security event for successful registration
+                securityEventService.logSecurityEvent(
+                        savedUser,
+                        "USER_REGISTRATION_SUCCESS",
+                        "A new user has been registered successfully.",
+                        httpRequest
+                );
+
             } catch (Exception e) {
                 log.error("Error saving user: {}", e.getMessage());
 
@@ -138,14 +147,6 @@ public class UserRegistrationService {
 
                 throw new RuntimeException("Failed to register user. Please try again.");
             }
-
-            // Log security event for successful registration
-            securityEventService.logSecurityEvent(
-                    savedUser,
-                    "USER_REGISTRATION_SUCCESS",
-                    "A new user has been registered successfully.",
-                    httpRequest
-            );
 
             // Send verification
             try {

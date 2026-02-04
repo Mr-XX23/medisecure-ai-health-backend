@@ -20,8 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class UserRegistration {
 
-    private final UserRegistrationService
-            registrationService;
+    private final UserRegistrationService registrationService;
 
     /**
      * Register a new user with email or phone number.

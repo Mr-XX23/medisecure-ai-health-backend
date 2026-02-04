@@ -4,4 +4,7 @@
 init-db
 docker-compose.yml
 Dockerfile
-application.properties
+*.log
+*.sqlite
+*.pyc
+*.xml

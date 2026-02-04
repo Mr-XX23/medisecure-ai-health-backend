@@ -3,6 +3,7 @@ package com.medisecure.authservice.services;
 import com.medisecure.authservice.models.AuthSecurityEvent;
 import com.medisecure.authservice.models.AuthUserCredentials;
 import com.medisecure.authservice.repository.AuthSecurityEventRepository;
+import com.medisecure.authservice.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -19,14 +21,13 @@ import java.time.LocalDateTime;
 public class AuthSecurityEventService {
 
     private final AuthSecurityEventRepository securityEvents;
+    private final UserRepository userRepository;
 
     @Async("securityEventExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void logSecurityEvent(AuthUserCredentials user, String eventType,
-                              String eventData, HttpServletRequest httprequest) {
+    public void logSecurityEvent(AuthUserCredentials user, String eventType, String eventData, HttpServletRequest httprequest) {
 
-        AuthSecurityEvent loginEvent = AuthSecurityEvent.builder()
-                .authUser(user)
+        AuthSecurityEvent securityEvent = AuthSecurityEvent.builder()
                 .eventType(eventType)
                 .eventData(eventData)
                 .eventTime(LocalDateTime.now())
@@ -34,12 +35,32 @@ public class AuthSecurityEventService {
                 .userAgent(getUserAgent(httprequest))
                 .build();
 
-        try {
-            AuthSecurityEvent savedEvent = securityEvents.save(loginEvent);
-            log.info("Saved login event with id: {}", savedEvent.getEventId());
-        } catch (Exception e) {
-            log.error("Failed to save security event: {}", e.getMessage());
+        // Only set user reference if user actually exists in database
+        if (user != null) {
+            try {
+                // Check if user exists before setting the relationship
+                UUID userId = user.getAuthUserId();
+                if (userId != null && userRepository.existsById(userId)) {
+                    securityEvent.setAuthUser(user);
+                } else {
+                    log.warn("User {} does not exist yet, logging event without user reference", userId);
+                }
+            }
+            catch (Exception e) {
+                log.warn("Unable to verify user existence, logging event without user reference", e);
+            }
         }
+
+        securityEvents.save(securityEvent);
+
+        log.info("Saved {} event with id: {}", eventType, securityEvent.getEventId());
+
+//        try {
+//            AuthSecurityEvent savedEvent = securityEvents.save(loginEvent);
+//            log.info("Saved login event with id: {}", savedEvent.getEventId());
+//        } catch (Exception e) {
+//            log.error("Failed to save security event: {}", e.getMessage());
+//        }
     }
 
     public static String getIpAddress(HttpServletRequest request) {
