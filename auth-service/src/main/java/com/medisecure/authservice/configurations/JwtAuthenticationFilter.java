@@ -27,8 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final String[] publicEndpoints;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String requestPath = request.getRequestURI();
         log.debug("I am here in JWT Filter for path: {}", requestPath);
 
@@ -39,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String accessToken = CookieUtil.getCookieValue(request, "access_token").orElse(null);
-
+        log.info(accessToken);
         if (accessToken != null) {
             try {
                 log.info("Attempting to authenticate using JWT Token");
