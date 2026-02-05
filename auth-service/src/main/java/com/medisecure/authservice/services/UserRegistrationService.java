@@ -613,7 +613,7 @@ public class UserRegistrationService {
 
             // Validate user contact (email or phone)
             AuthUserCredentials user = userRepository.findByEmailOrPhoneNumber(userContact, userContact)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new RuntimeException("Cannot reset password, Please check your information."));
 
             // Generate reset token
             String resetToken = UUID.randomUUID().toString();
