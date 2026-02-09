@@ -19,15 +19,15 @@ public class OAuth2Controller {
 
     private final OAuth2Service oauth2Service;
 
-    @GetMapping("/callback/google")
-    public ResponseEntity<OAuth2LoginResponse> googleCallback(
-            @AuthenticationPrincipal OAuth2User oauth2User,
-            HttpServletResponse response,
-            HttpServletRequest request) {
-
-        OAuth2LoginResponse loginResponse = oauth2Service.processOAuth2Login(
-                oauth2User, response, request);
-
-        return ResponseEntity.ok(loginResponse);
-    }
+//    @GetMapping("/callback/google")
+//    public ResponseEntity<OAuth2LoginResponse> googleCallback(
+//            @AuthenticationPrincipal OAuth2User oauth2User,
+//            HttpServletResponse response,
+//            HttpServletRequest request) {
+//
+//        OAuth2LoginResponse loginResponse = oauth2Service.processOAuth2Login(
+//                oauth2User, response, request);
+//
+//        return ResponseEntity.ok(loginResponse);
+//    }
 }

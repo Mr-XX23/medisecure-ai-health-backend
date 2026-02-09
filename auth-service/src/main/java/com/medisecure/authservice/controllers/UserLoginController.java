@@ -3,7 +3,9 @@ package com.medisecure.authservice.controllers;
 import com.medisecure.authservice.dto.CookieUtil;
 import com.medisecure.authservice.dto.loginregistration.LoginRequest;
 import com.medisecure.authservice.dto.loginregistration.LoginResponse;
-import com.medisecure.authservice.services.UserLoginService;
+import com.medisecure.authservice.services.userlogin.Logout;
+import com.medisecure.authservice.services.userlogin.RefreshToken;
+import com.medisecure.authservice.services.userlogin.UserLogin;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -11,12 +13,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class UserLoginController {
 
-    private final UserLoginService userLoginService;
+    private final UserLogin userLogin;
+    private final RefreshToken refreshTokenService;
+    private final Logout logoutService;
 
     /**
      * Login a user with username and password.
@@ -25,7 +32,7 @@ public class UserLoginController {
      */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> loginUser(HttpServletResponse response, HttpServletRequest request, @RequestBody @Valid LoginRequest loginRequest) {
-        LoginResponse loginResponse = userLoginService.loginUsers(loginRequest.getUsername(),  loginRequest.getPassword(), response, request);
+        LoginResponse loginResponse = userLogin.loginUsers(loginRequest.getUsername(),  loginRequest.getPassword(), response, request);
        return ResponseEntity.ok(loginResponse);
     }
 
@@ -41,7 +48,7 @@ public class UserLoginController {
         String refreshToken = CookieUtil.getCookieValue(request, "refresh_token")
                 .orElseThrow(() -> new IllegalArgumentException("Refresh token not found"));
 
-        String newAccessToken = userLoginService.refreshAccessToken(refreshToken, response, request);
+        String newAccessToken = refreshTokenService.refreshAccessToken(refreshToken, response, request);
         return ResponseEntity.ok(newAccessToken);
     }
 
@@ -50,17 +57,23 @@ public class UserLoginController {
      * @param response HttpServletResponse, request HttpServletRequest
      * @return A response entity with logout status.
      */
-    @GetMapping("/logout")
-    public ResponseEntity<String> logout(
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, Object>> logout(
             HttpServletRequest request,
             HttpServletResponse response) {
 
         String accessToken = CookieUtil.getCookieValue(request, "access_token").orElse(null);
         String refreshToken = CookieUtil.getCookieValue(request, "refresh_token").orElse(null);
 
-        userLoginService.logout(accessToken, refreshToken, request, response);
+        String res = logoutService.logout(accessToken, refreshToken, request, response);
 
-        return ResponseEntity.ok("Logged out successfully");
+        Map<String, Object> responseBody = Map.of(
+                "message", res,
+                "success", true,
+                "timestamp", LocalDateTime.now().toString()
+        );
+
+        return ResponseEntity.ok(responseBody);
     }
 
     /**
@@ -74,7 +87,7 @@ public class UserLoginController {
             @PathVariable String userId,
             @RequestParam(defaultValue = "Admin action") String reason) {
 
-        userLoginService.forceLogoutAllSessions(userId, reason);
+        logoutService.forceLogoutAllSessions(userId, reason);
 
         return ResponseEntity.ok("All sessions terminated for user");
     }

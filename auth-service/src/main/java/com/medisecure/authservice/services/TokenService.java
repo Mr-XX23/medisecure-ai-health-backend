@@ -4,6 +4,7 @@ import com.medisecure.authservice.models.AuthUserCredentials;
 import com.medisecure.authservice.models.TokenStore;
 import com.medisecure.authservice.repository.TokenStoreRepository;
 import com.medisecure.authservice.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -23,6 +24,7 @@ public class TokenService {
     private final TokenStoreRepository tokenStoreRepository;
     private final UserRepository userRepository;
     private final JwtService jwtService;
+    private final EntityManager entityManager;
 
     /**
      * Save access token using saveToken to the database
@@ -48,7 +50,7 @@ public class TokenService {
      */
     private void saveToken(UUID userId, String token, String tokenType) {
 
-        try {
+
             AuthUserCredentials user = userRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
 
@@ -65,12 +67,9 @@ public class TokenService {
                     .build();
 
             tokenStoreRepository.save(tokenStore);
+            entityManager.flush();
 
             log.info("{} token saved for user ID: {}", tokenType, userId);
-
-        } catch ( RuntimeException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     /**
@@ -112,11 +111,7 @@ public class TokenService {
      */
     @Transactional
     public void revokeAllUserTokens(UUID userId) {
-        tokenStoreRepository.findAllByAuthUser_AuthUserIdAndRevokedFalse(userId)
-                .forEach(tokenStore -> {
-                    tokenStore.setRevoked(true);
-                    tokenStoreRepository.save(tokenStore);
-                });
+        int updated = tokenStoreRepository.revokeAllByUserId(userId);
         log.info("All tokens revoked for user ID: {}", userId);
     }
 
@@ -126,11 +121,7 @@ public class TokenService {
      */
     @Transactional
     public void revokeAllUserTokensByType(UUID userId, String tokenType) {
-        tokenStoreRepository.findAllByAuthUser_AuthUserIdAndTokenTypeAndRevokedFalse(userId, tokenType)
-                .forEach(tokenStore -> {
-                    tokenStore.setRevoked(true);
-                    tokenStoreRepository.save(tokenStore);
-                });
+        int updated = tokenStoreRepository.revokeAllByUserIdAndType(userId, tokenType);
         log.info("All {} tokens revoked for user ID: {}", tokenType, userId);
     }
 

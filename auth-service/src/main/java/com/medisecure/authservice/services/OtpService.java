@@ -17,6 +17,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 
 
@@ -143,17 +144,16 @@ public class OtpService {
     private void invalidateExistingOtps(UUID authUserId, String otpType) {
         LocalDateTime now = LocalDateTime.now();
 
-        otpEventLogRepository.findAll().stream()
-                .filter(log -> log.getAuthUser().getAuthUserId().equals(authUserId))
-                .filter(log -> log.getOtpType().equals(otpType))
-                .filter(log -> !log.getVerified())
-                .filter(log -> log.getExpiresAt().isAfter(now))
-                .forEach(log -> {
-                    log.setVerified(true);
-                    otpEventLogRepository.save(log);
-                });
+        // Use repository method to find active OTPs for the user and type, then mark them as verified (invalidated)
+        List<OtpEventLog> activeOtps = otpEventLogRepository
+                .findAllByAuthUser_AuthUserIdAndOtpTypeAndVerifiedFalseAndExpiresAtAfter(
+                        authUserId, otpType, now);
 
-        log.debug("Invalidated existing {} OTPs for user ID: {}", otpType, authUserId);
+        activeOtps.forEach(log -> log.setVerified(true));
+        otpEventLogRepository.saveAll(activeOtps);
+
+        log.debug("Invalidated {} existing {} OTPs for user ID: {}",
+                activeOtps.size(), otpType, authUserId);
     }
 
     private String generateSecureToken() {

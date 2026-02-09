@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.EnumType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,6 +44,7 @@ public class AuthUserCredentials {
         LOCKED
     }
 
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "auth_user_id", columnDefinition = "UUID", updatable = false, nullable = false)
@@ -51,9 +53,13 @@ public class AuthUserCredentials {
     @Column(unique = true, length = 100, updatable = false)
     private String googleId;
 
-    @Column(unique = true, nullable = false, updatable = false, length = 20)
+    @Column(nullable = false, length = 20)
     @NotBlank( message = "Username is mandatory")
     private String username;
+
+    @Column(unique = true, nullable = false, updatable = false, length = 20)
+    @NotBlank( message = "Username is mandatory")
+    private String usernameId;
 
     @Email
     @Column(unique = true, length = 100)
@@ -63,7 +69,13 @@ public class AuthUserCredentials {
     @Column(unique = true, length = 20)
     private String phoneNumber;
 
+    @Enumerated(EnumType.STRING)
+    @Column(unique = true, length = 20)
+    @NotNull( message = " Role is mandatory")
+    private Role role;
+
     @Column(length = 256)
+    @NotBlank( message = " Password is mandatory")
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)

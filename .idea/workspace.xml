@@ -4,32 +4,67 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dbe2e314-1283-4cd0-bd79-93671831ddec" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/AuthSecurityEvent.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/AuthUserCredentials.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/OauthIdentity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/OtpEventLog.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/TokenStore.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/config-server/src/main/resources/config/auth-service.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/user-service/src/main/java/com/medisecure/userservice/models/Consent.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/user-service/src/main/java/com/medisecure/userservice/models/PasswordHistory.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/user-service/src/main/java/com/medisecure/userservice/models/Role.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/user-service/src/main/java/com/medisecure/userservice/models/SecurityEvent.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/user-service/src/main/java/com/medisecure/userservice/models/User.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/user-service/src/main/java/com/medisecure/userservice/models/UserProfile.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/user-service/src/main/java/com/medisecure/userservice/models/UserRole.java" afterDir="false" />
+    <list default="true" id="dbe2e314-1283-4cd0-bd79-93671831ddec" name="Changes" comment="fix: Changes on service properties for Eureka configuration and improve security event logging">
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/OAuth2AuthenticationSuccessHandler.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/Role.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/LoginUtilities.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/Logout.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/RefreshToken.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/UserLogin.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/Registration.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/ResetPassword.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/SendEmailVerification.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/SendPhoneVerification.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/VerifyEmail.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/VerifyPhone.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config-server/src/main/java/com/medisecure/configserver/ConfigServerApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/config-server/src/main/java/com/medisecure/configserver/ConfigServerApplication.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/JwtAuthenticationFilter.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/JwtAuthenticationFilter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/OAuth2Controller.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/OAuth2Controller.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserLoginController.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserLoginController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserRegistration.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserRegistration.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/loginregistration/LoginResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/loginregistration/LoginResponse.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/userregistrations/RegistrationRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/userregistrations/RegistrationRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/AuthUserCredentials.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/AuthUserCredentials.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/OtpEventLogRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/OtpEventLogRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/TokenStoreRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/TokenStoreRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OAuth2Service.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OAuth2Service.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OtpService.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OtpService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/TokenService.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/TokenService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/UserLoginService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/UserRegistrationService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/auth-service/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config-server/src/main/resources/config/auth-service.properties" beforeDir="false" afterPath="$PROJECT_DIR$/config-server/src/main/resources/config/auth-service.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config-server/src/main/resources/config/gateway-service.properties" beforeDir="false" afterPath="$PROJECT_DIR$/config-server/src/main/resources/config/gateway-service.properties" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="ComposerSettings">
+    <execution />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_D:/Agent Ai/ai_health_Care/ai-health-system-backend/gateway-service" value="35lfwlY4jiyERjLGATk6PzuM8IE" />
+    </persistenceIdMap>
+  </component>
+  <component name="CopilotUserSelectedModel">
+    <selectedModels>
+      <entry key="edit-panel" value="GPT-5 mini" />
+      <entry key="chat-panel" value="Claude Sonnet 4.5" />
+      <entry key="agent-panel" value="Claude Sonnet 4.5" />
+    </selectedModels>
+  </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Interface" />
+        <option value="package-info" />
+        <option value="Enum" />
         <option value="Class" />
       </list>
     </option>
@@ -46,7 +81,7 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/Mr-XX23/medisecure-ai-health-backend.git&quot;,
-    &quot;accountId&quot;: &quot;690b2071-0d6d-4526-9522-a4097920d223&quot;
+    &quot;accountId&quot;: &quot;cbec6ba2-4a3d-454c-a6cd-248857032979&quot;
   }
 }</component>
   <component name="KubernetesApiPersistence">{}</component>
@@ -60,6 +95,7 @@
       </MavenGeneralSettings>
     </option>
   </component>
+  <component name="PhpDebugGeneral" listening_started="true" />
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 0
@@ -86,9 +122,13 @@
     &quot;Spring Boot.AuthServiceApplication.executor&quot;: &quot;Run&quot;,
     &quot;Spring Boot.ConfigServerApplication.executor&quot;: &quot;Run&quot;,
     &quot;Spring Boot.EurekaServiceApplication.executor&quot;: &quot;Run&quot;,
+    &quot;Spring Boot.GatewayServerApplication.executor&quot;: &quot;Run&quot;,
+    &quot;Spring Boot.GatewayServiceApplication.executor&quot;: &quot;Run&quot;,
     &quot;Spring Boot.UserServiceApplication.executor&quot;: &quot;Run&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;D:/Agent Ai/ai_health_Care/ai-health-system-backend&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
@@ -101,11 +141,29 @@
     &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
     &quot;run.configurations.included.in.services&quot;: &quot;true&quot;,
     &quot;settings.build.tools.auto.reload&quot;: &quot;SELECTIVE&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;spring&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="ReactorSettings">
+    <option name="notificationShown" value="true" />
+  </component>
   <component name="RecentsManager">
+    <key name="CreateClassDialog.RecentsKey">
+      <recent name="com.medisecure.authservice.services" />
+      <recent name="com.medisecure.authservice.dto.userregistrations" />
+      <recent name="com.medisecure.authservice.dto" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Agent Ai\ai_health_Care\ai-health-system-backend\config-server" />
+      <recent name="D:\Agent Ai\ai_health_Care\ai-health-system-backend\user-service" />
+      <recent name="D:\Agent Ai\ai_health_Care\ai-health-system-backend\gateway-service" />
+      <recent name="D:\Agent Ai\ai_health_Care\ai-health-system-backend\eureka-service" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\Agent Ai\ai_health_Care\ai-health-system-backend\auth-service\src\main\resources\key" />
+    </key>
     <key name="CopyClassDialog.RECENTS_KEY">
       <recent name="com.medisecure.authservice.models" />
     </key>
@@ -119,6 +177,18 @@
         <option value="SpringBootApplicationConfigurationType" />
       </set>
     </option>
+    <option name="hiddenConfigurations">
+      <map>
+        <entry key="SpringBootApplicationConfigurationType">
+          <value>
+            <set>
+              <option value="GatewayServiceApplication" />
+              <option value="UserServiceApplication" />
+            </set>
+          </value>
+        </entry>
+      </map>
+    </option>
     <option name="configurationStatuses">
       <map>
         <entry key="SpringBootApplicationConfigurationType">
@@ -126,15 +196,13 @@
             <map>
               <entry key="AuthServiceApplication" value="STOPPED" />
               <entry key="ConfigServerApplication" value="STOPPED" />
-              <entry key="EurekaServiceApplication" value="STOPPED" />
-              <entry key="UserServiceApplication" value="STOPPED" />
             </map>
           </value>
         </entry>
       </map>
     </option>
   </component>
-  <component name="RunManager" selected="Spring Boot.EurekaServiceApplication">
+  <component name="RunManager" selected="Spring Boot.AuthServiceApplication">
     <configuration default="true" type="JetRunConfigurationType">
       <module name="ai-health-system-backend" />
       <method v="2">
@@ -147,39 +215,94 @@
       <method v="2" />
     </configuration>
     <configuration name="AuthServiceApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <option name="envFilePaths">
+        <option value="$PROJECT_DIR$/.env" />
+      </option>
       <module name="auth-service" />
+      <selectedOptions>
+        <option name="environmentVariables" />
+      </selectedOptions>
       <option name="SPRING_BOOT_MAIN_CLASS" value="com.medisecure.authservice.AuthServiceApplication" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
     </configuration>
     <configuration name="ConfigServerApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <option name="envFilePaths">
+        <option value="$PROJECT_DIR$/.env" />
+      </option>
       <module name="config-server" />
+      <selectedOptions>
+        <option name="environmentVariables" />
+      </selectedOptions>
       <option name="SPRING_BOOT_MAIN_CLASS" value="com.medisecure.configserver.ConfigServerApplication" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
     </configuration>
     <configuration name="EurekaServiceApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <option name="envFilePaths">
+        <option value="$PROJECT_DIR$/.env" />
+      </option>
       <module name="eureka-service" />
+      <selectedOptions>
+        <option name="environmentVariables" />
+      </selectedOptions>
       <option name="SPRING_BOOT_MAIN_CLASS" value="com.medisecure.eurekaservice.EurekaServiceApplication" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration name="GatewayServiceApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <option name="envFilePaths">
+        <option value="$PROJECT_DIR$/.env" />
+      </option>
+      <module name="gateway-service" />
+      <selectedOptions>
+        <option name="environmentVariables" />
+      </selectedOptions>
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.medisecure.gatewayservice.GatewayServiceApplication" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="com.medisecure.gatewayservice.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="UserServiceApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <option name="envFilePaths">
+        <option value="$PROJECT_DIR$/.env" />
+      </option>
       <module name="user-service" />
+      <selectedOptions>
+        <option name="environmentVariables" />
+      </selectedOptions>
       <option name="SPRING_BOOT_MAIN_CLASS" value="com.medisecure.userservice.UserServiceApplication" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
+      <deployment type="docker-compose.yml">
+        <settings />
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Spring Boot.AuthServiceApplication" />
+      <item itemvalue="Spring Boot.EurekaServiceApplication" />
+      <item itemvalue="Spring Boot.ConfigServerApplication" />
+      <item itemvalue="Spring Boot.GatewayServiceApplication" />
+      <item itemvalue="Spring Boot.UserServiceApplication" />
+    </list>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.25557.131" />
-        <option value="bundled-js-predefined-d6986cc7102b-b598e85cdad2-JavaScript-IU-252.25557.131" />
+        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.28539.33" />
       </set>
     </attachedChunks>
   </component>
@@ -202,12 +325,105 @@
       <workItem from="1763869135921" duration="7840000" />
       <workItem from="1763877173296" duration="971000" />
       <workItem from="1763878173872" duration="3677000" />
-      <workItem from="1763893799734" duration="2893000" />
+      <workItem from="1763893799734" duration="3348000" />
+      <workItem from="1763899525860" duration="774000" />
+      <workItem from="1763904033949" duration="15779000" />
+      <workItem from="1763959049372" duration="30039000" />
+      <workItem from="1764049066472" duration="35887000" />
+      <workItem from="1764295540361" duration="4709000" />
+      <workItem from="1764998137911" duration="1079000" />
+      <workItem from="1765117933738" duration="29715000" />
+      <workItem from="1765248568865" duration="2057000" />
+      <workItem from="1765609727945" duration="28809000" />
+      <workItem from="1765936376079" duration="793000" />
+      <workItem from="1765937215651" duration="2415000" />
+      <workItem from="1766022118636" duration="5043000" />
+      <workItem from="1766419251411" duration="9497000" />
+      <workItem from="1766497331014" duration="14704000" />
+      <workItem from="1767240789275" duration="180000" />
+      <workItem from="1767240987563" duration="1396000" />
+      <workItem from="1767321302978" duration="1891000" />
+      <workItem from="1770191023461" duration="6442000" />
+      <workItem from="1770343392250" duration="4864000" />
+      <workItem from="1770384669548" duration="2253000" />
+      <workItem from="1770388707250" duration="6907000" />
+      <workItem from="1770466826000" duration="1862000" />
+      <workItem from="1770469035306" duration="20558000" />
+      <workItem from="1770568228833" duration="18572000" />
+      <workItem from="1770623184057" duration="2500000" />
     </task>
+    <task id="LOCAL-00001" summary="added user service, auth service and config management for Eureka server">
+      <option name="closed" value="true" />
+      <created>1763899095963</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1763899095963</updated>
+    </task>
+    <task id="LOCAL-00002" summary="add user service application and exception handling; configure properties and maven wrapper">
+      <option name="closed" value="true" />
+      <created>1765939254321</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1765939254321</updated>
+    </task>
+    <task id="LOCAL-00003" summary="add user service application and exception handling; configure properties and maven wrapper">
+      <option name="closed" value="true" />
+      <created>1765939296306</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1765939296306</updated>
+    </task>
+    <task id="LOCAL-00004" summary="add OAuth2 login functionality and security event logging; configure async processing and exception handling">
+      <option name="closed" value="true" />
+      <created>1766434765820</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1766434765820</updated>
+    </task>
+    <task id="LOCAL-00005" summary="implement OAuth2 login with Google; add async logging for security events; refactor user registration and verification processes">
+      <option name="closed" value="true" />
+      <created>1766435187659</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1766435187659</updated>
+    </task>
+    <task id="LOCAL-00006" summary="fix: Changes on service properties for Eureka configuration and improve security event logging">
+      <option name="closed" value="true" />
+      <created>1770195227938</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1770195227938</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="added user service, auth service and config management for Eureka server" />
+    <MESSAGE value="add user service application and exception handling; configure properties and maven wrapper" />
+    <MESSAGE value="add OAuth2 login functionality and security event logging; configure async processing and exception handling" />
+    <MESSAGE value="implement OAuth2 login with Google; add async logging for security events; refactor user registration and verification processes" />
+    <MESSAGE value="fix: Changes on service properties for Eureka configuration and improve security event logging" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: Changes on service properties for Eureka configuration and improve security event logging" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

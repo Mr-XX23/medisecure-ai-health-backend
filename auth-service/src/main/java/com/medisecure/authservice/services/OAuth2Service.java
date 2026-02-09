@@ -7,6 +7,7 @@ import com.medisecure.authservice.models.AuthUserCredentials;
 import com.medisecure.authservice.repository.UserRepository;
 
 
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -28,17 +29,25 @@ public class OAuth2Service {
     private final CookiesService cookiesService;
     private final TokenService tokenService;
     private final AuthSecurityEventService securityEvents;
+    private final EntityManager entityManager;
 
     @Transactional
     public OAuth2LoginResponse processOAuth2Login( OAuth2User oauth2User, HttpServletResponse response, HttpServletRequest request ){
+
+        // Add null check
+        if (oauth2User == null) {
+            log.error("OAuth2User is null");
+            throw new BadRequestException("OAuth2 authentication failed");
+        }
+
         String email = oauth2User.getAttribute("email");
         String name = oauth2User.getAttribute("name");
         String googleId = oauth2User.getAttribute("sub");
 
         if (email == null || googleId == null) {
-            throw new BadRequestException("Invalid Google OAuth response");
+            log.error("Missing required OAuth2 attributes. Email: {}, GoogleId: {}", email, googleId);
+            throw new BadRequestException("Invalid Google OAuth response - missing required information");
         }
-
 
         // Find or create user
         AuthUserCredentials user = userRepository.findByEmail(email)
@@ -61,6 +70,9 @@ public class OAuth2Service {
         // Save tokens in database
         tokenService.saveAccessToken(user.getAuthUserId(), accessToken);
         tokenService.saveRefreshToken(user.getAuthUserId(), refreshToken);
+
+        // Force flush
+        entityManager.flush();
 
         // Set HttpOnly cookies
         cookiesService.setAccessTokenCookie(response, accessToken);

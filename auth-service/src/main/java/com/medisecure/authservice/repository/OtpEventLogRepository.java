@@ -14,21 +14,22 @@ import java.util.UUID;
 @Repository
 public interface OtpEventLogRepository extends JpaRepository<OtpEventLog, UUID> {
 
-    @Query("SELECT o FROM OtpEventLog o WHERE o.authUser.authUserId = :authUserId " +
-            "AND o.otpType = :otpType AND o.verified = false " +
-            "AND o.expiresAt > :now ORDER BY o.createdAt DESC")
-    List<OtpEventLog> findActiveOtpsByUserAndType(
-            @Param("authUserId") Long authUserId,
-            @Param("otpType") String otpType,
-            @Param("now") LocalDateTime now
+    Optional<OtpEventLog> findFirstByOtpTypeAndOtpCodeAndVerifiedAndExpiresAtAfter(
+            String otpType,
+            String otpCode,
+            Boolean verified,
+            LocalDateTime expiresAt
     );
 
-    @Query("SELECT o FROM OtpEventLog o WHERE o.authUser.authUserId = :authUserId " +
-            "AND o.otpType = :otpType AND o.verified = false " +
-            "AND o.expiresAt > :now ORDER BY o.createdAt DESC")
-    Optional<OtpEventLog> findLatestActiveOtp(
-            @Param("authUserId") Long authUserId,
-            @Param("otpType") String otpType,
-            @Param("now") LocalDateTime now
+    Optional<OtpEventLog> findFirstByAuthUser_AuthUserIdAndOtpTypeAndVerifiedFalseAndExpiresAtAfter(
+            UUID authUserId,
+            String otpType,
+            LocalDateTime now
+    );
+
+    List<OtpEventLog> findAllByAuthUser_AuthUserIdAndOtpTypeAndVerifiedFalseAndExpiresAtAfter(
+            UUID authUserId,
+            String otpType,
+            LocalDateTime expiresAt
     );
 }

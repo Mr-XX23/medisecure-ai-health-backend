@@ -12,9 +12,13 @@ public class LoginResponse {
     @NotBlank(message = "username is needed")
     private String username;
 
+    private String userId;
+
     private String email;
 
     private String phoneNumber;
+
+    private String LastLoginTime;
 
     @NotBlank(message = "status is needed")
     private String status;

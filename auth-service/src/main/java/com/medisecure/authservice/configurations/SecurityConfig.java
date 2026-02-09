@@ -21,6 +21,7 @@ public class SecurityConfig {
     private final JwtService jwtService;
     private final JwtDecoder jwtDecoder;
     private final PublicEndpointsConfig publicEndpointsConfig;
+    private final OAuth2AuthenticationSuccessHandler oauth2SuccessHandler;
 
     /**
      * Configure security filter chain
@@ -38,6 +39,8 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                     .loginPage("/oauth2/authorization/google")
                     .defaultSuccessUrl("/api/v1/auth/oauth2/callback/google", true)
+                    .successHandler(oauth2SuccessHandler)
+                        .failureUrl("/login?error=oauth_failed")
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService, publicEndpointsConfig.getPublicEndpoints()),

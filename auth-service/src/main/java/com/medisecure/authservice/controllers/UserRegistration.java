@@ -6,7 +6,7 @@ import com.medisecure.authservice.dto.passwordreset.PasswordResetRequest;
 import com.medisecure.authservice.dto.phone.PhoneVerificationRequest;
 import com.medisecure.authservice.dto.userregistrations.RegistrationRequest;
 import com.medisecure.authservice.dto.userregistrations.RegistrationResponse;
-import com.medisecure.authservice.services.UserRegistrationService;
+import com.medisecure.authservice.services.userregistration.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -20,7 +20,13 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class UserRegistration {
 
-    private final UserRegistrationService registrationService;
+    private final Registration registrationService;
+    private final SendEmailVerification sendEmailVerification;
+    private final SendPhoneVerification sendPhoneVerification;
+    private final VerifyEmail verifyEmail;
+    private final VerifyPhone verifyPhone;
+    private final ResetPassword resetPassword;
+
 
     /**
      * Register a new user with email or phone number.
@@ -33,6 +39,7 @@ public class UserRegistration {
         RegistrationResponse response = registrationService.registerUser(request, httpRequest);
         return ResponseEntity.ok(response);
     }
+
     /**
      * Verify user's email address using the verification token.
      * @param request The verification request containing the userId.
@@ -40,7 +47,7 @@ public class UserRegistration {
      */
     @PostMapping("/send-email-verification")
     public ResponseEntity<RegistrationResponse> sendEmailVerification(@Valid @RequestBody EmailVerificationRequest request, HttpServletRequest httpRequest) {
-        RegistrationResponse response = registrationService.sendEmailVerification(request.getUserId(), httpRequest);
+        RegistrationResponse response = sendEmailVerification.sendEmailVerification(request.getUserId(), httpRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -51,7 +58,7 @@ public class UserRegistration {
      */
     @PostMapping("/send-phone-verification")
     public ResponseEntity<RegistrationResponse> sendPhoneVerification(@Valid @RequestBody PhoneVerificationRequest request, HttpServletRequest httpRequest) {
-        RegistrationResponse response = registrationService.sendPhoneVerification(request.getUserId(), httpRequest);
+        RegistrationResponse response = sendPhoneVerification.sendPhoneVerification(request.getUserId(), httpRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -61,13 +68,10 @@ public class UserRegistration {
      * @return A response entity with verification status.
      */
     @GetMapping("/verify-email")
-    public ResponseEntity<RegistrationResponse> verifyEmail(
-            @RequestParam("token") @NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
+    public ResponseEntity<RegistrationResponse> verifyEmail(@RequestParam("token") @NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
 
-        RegistrationResponse response = registrationService.verifyEmail(token, httpRequest);
-
+        RegistrationResponse response = verifyEmail.verifyEmail(token, httpRequest);
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
-
         return ResponseEntity.status(status).body(response);
     }
 
@@ -82,7 +86,7 @@ public class UserRegistration {
             @RequestBody @NotBlank(message = "OTP is required") String otp,
             @NotBlank(message = "ID is required") String userId, HttpServletRequest httpRequest) {
 
-        RegistrationResponse response = registrationService.verifyPhone(userId, otp, httpRequest);
+        RegistrationResponse response = verifyPhone.verifyPhone(userId, otp, httpRequest);
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(response);
 
@@ -96,7 +100,7 @@ public class UserRegistration {
     @PostMapping("/reset-password")
     public ResponseEntity<RegistrationResponse> resetPassword(
             @Valid @RequestBody PasswordResetRequest request, HttpServletRequest httpRequest) {
-        RegistrationResponse response = registrationService.resetPassword(request.getUserContact(), httpRequest);
+        RegistrationResponse response = resetPassword.resetPassword(request.getUserContact(), httpRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -111,7 +115,7 @@ public class UserRegistration {
             @RequestParam("token") @NotBlank(message = "Token is required") String token,
             @Valid @RequestBody PasswordResetConfirmRequest request, HttpServletRequest httpRequest) {
 
-        RegistrationResponse response = registrationService.confirmPasswordReset(token, request.getNewPassword(), httpRequest);
+        RegistrationResponse response = resetPassword.confirmPasswordReset(token, request.getNewPassword(), httpRequest);
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(response);
     }
