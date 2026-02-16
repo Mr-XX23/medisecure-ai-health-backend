@@ -12,6 +12,9 @@ public class RegistrationResponse {
     private boolean success;
     private String message;
     private String userId;
-    private String email;
     private String username;
+    private Boolean emailVerificationSent;
+    private Boolean smsVerificationSent;
+    private String email;
+
 }

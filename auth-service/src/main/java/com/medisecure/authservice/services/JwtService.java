@@ -117,15 +117,6 @@ public class JwtService {
     }
 
     /**
-     * Extract extractTokenType from Token
-     * @param  token String
-     */
-    public String extractTokenType(String token) {
-        Jwt jwt = validateAndDecodeToken(token);
-        return jwt.getClaim("tokenType");
-    }
-
-    /**
      * Check if Token is expired
      * @param  token String
      */

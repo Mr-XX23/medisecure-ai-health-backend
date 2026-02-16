@@ -1,7 +1,5 @@
 package com.medisecure.authservice.services.userregistration;
 
-import com.medisecure.authservice.dto.userregistrations.RegistrationResponse;
-import com.medisecure.authservice.exceptions.BadRequestException;
 import com.medisecure.authservice.models.AuthUserCredentials;
 import com.medisecure.authservice.models.OtpEventLog;
 import com.medisecure.authservice.repository.OtpEventLogRepository;
@@ -13,9 +11,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.ModelAndView;
 
 import java.time.LocalDateTime;
 
@@ -30,15 +30,18 @@ public class VerifyEmail {
     private final EntityManager entityManager;
     private final AuthSecurityEventService securityEventService;
 
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
+
     /**
      * Verify user's email address using the verification token.
      *
      * @param token The email verification token.
-     * @return A response entity with verification status.
+     * @return A ModelAndView with verification status page.
      */
 
     @Transactional
-    public RegistrationResponse verifyEmail(@NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
+    public ModelAndView verifyEmail(@NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
 
         // Log security even
         securityEventService.logSecurityEvent(
@@ -47,6 +50,8 @@ public class VerifyEmail {
                 "An email verification attempt is made for activations of account.",
                 httpRequest);
 
+        log.info("Validating email verification token: {}", token);
+
         // Validate token is not empty
         if (token == null || token.isBlank()) {
             securityEventService.logSecurityEvent(
@@ -54,16 +59,23 @@ public class VerifyEmail {
                     "EMAIL_VERIFICATION_FAILED",
                     "Email verification failed: empty token.",
                     httpRequest);
-            throw new BadRequestException("Token cannot be empty");
+
+            ModelAndView modelAndView = new ModelAndView("email-verification-success");
+            modelAndView.addObject("success", false);
+            modelAndView.addObject("title", "Invalid Verification Link");
+            modelAndView.addObject("message", "The verification link is invalid or incomplete.");
+            modelAndView.addObject("subMessage", "Please request a new verification email.");
+            modelAndView.addObject("loginUrl", frontendUrl + "/login");
+            return modelAndView;
         }
 
         try {
 
+            log.info("Hashing the token to match the stored hash for email verification.");
             // Hash the token to match stored hash
             String tokenHash = hashFormater.hashWithSHA256(token);
 
             // Find OTP log entry
-
             OtpEventLog otpLog = otpEventLogRepository
                     .findFirstByOtpTypeAndOtpCodeAndVerifiedAndExpiresAtAfter(
                             "EMAIL_VERIFICATION",
@@ -82,7 +94,7 @@ public class VerifyEmail {
                         "Invalid email verification attempt.",
                         httpRequest);
 
-                throw new BadRequestException("Invalid token or Cannot be empty");
+                return getModelAndView();
             }
 
             // Get user
@@ -98,16 +110,7 @@ public class VerifyEmail {
                         "Email verification attempted for already verified email.",
                         httpRequest);
 
-                return RegistrationResponse.builder()
-                        .success(true)
-                        .message("Email is already verified" +
-                                (user.getStatus() == AuthUserCredentials.Status.ACTIVE
-                                        ? ". Your account is active."
-                                        : ". Please verify your phone number to activate your account."))
-                        .email(user.getEmail())
-                        .username(user.getUsername())
-                        .userId(user.getAuthUserId().toString())
-                        .build();
+                return getModelAndView(user);
             }
 
             // Update user verification status
@@ -173,16 +176,7 @@ public class VerifyEmail {
                     httpRequest);
 
 
-            return RegistrationResponse.builder()
-                    .success(true)
-                    .message("Email verified successfully" +
-                            (user.getStatus() == AuthUserCredentials.Status.ACTIVE
-                                    ? ". Your account is now active."
-                                    : ". Please verify your phone number to activate your account to access full features."))
-                    .email(user.getEmail())
-                    .username(user.getUsername())
-                    .userId(user.getAuthUserId().toString())
-                    .build();
+            return getAndView(user);
         } catch (Exception e) {
             log.error("Error verifying email: {}", e.getMessage());
 
@@ -193,8 +187,54 @@ public class VerifyEmail {
                     "Error verifying email.",
                     httpRequest);
 
-            throw new RuntimeException("Error verifying email. Please try again.");
+            ModelAndView modelAndView = new ModelAndView("email-verification-success");
+            modelAndView.addObject("success", false);
+            modelAndView.addObject("title", "Verification Error");
+            modelAndView.addObject("message", "An error occurred while verifying your email.");
+            modelAndView.addObject("subMessage", "Please try again or contact support if the problem persists.");
+            modelAndView.addObject("loginUrl", frontendUrl + "/login");
+            return modelAndView;
         }
+    }
+
+    private ModelAndView getAndView(AuthUserCredentials user) {
+        ModelAndView modelAndView = new ModelAndView("email-verification-success");
+        modelAndView.addObject("success", true);
+        modelAndView.addObject("title", "Email Verified!");
+        modelAndView.addObject("message", "Your email has been successfully verified" +
+                (user.getStatus() == AuthUserCredentials.Status.ACTIVE
+                        ? " and your account is now active."
+                        : "."));
+        modelAndView.addObject("subMessage", user.getStatus() != AuthUserCredentials.Status.ACTIVE
+                ? "Please verify your phone number to activate your account and access full features."
+                : "You can now log in to your account and start using our services.");
+        modelAndView.addObject("loginUrl", frontendUrl + "/login");
+        return modelAndView;
+    }
+
+    private ModelAndView getModelAndView(AuthUserCredentials user) {
+        ModelAndView modelAndView = new ModelAndView("email-verification-success");
+        modelAndView.addObject("success", true);
+        modelAndView.addObject("title", "Email Already Verified");
+        modelAndView.addObject("message", "Your email has already been verified" +
+                (user.getStatus() == AuthUserCredentials.Status.ACTIVE
+                        ? " and your account is active."
+                        : "."));
+        modelAndView.addObject("subMessage", user.getStatus() != AuthUserCredentials.Status.ACTIVE
+                ? "Please verify your phone number to activate your account."
+                : "You can now log in to your account.");
+        modelAndView.addObject("loginUrl", frontendUrl + "/login");
+        return modelAndView;
+    }
+
+    private ModelAndView getModelAndView() {
+        ModelAndView modelAndView = new ModelAndView("email-verification-success");
+        modelAndView.addObject("success", false);
+        modelAndView.addObject("title", "Verification Failed");
+        modelAndView.addObject("message", "The verification link is invalid or has expired.");
+        modelAndView.addObject("subMessage", "Please request a new verification email from your account.");
+        modelAndView.addObject("loginUrl", frontendUrl + "/login");
+        return modelAndView;
     }
 
 

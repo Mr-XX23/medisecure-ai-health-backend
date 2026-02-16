@@ -1,8 +1,8 @@
 package com.medisecure.authservice.dto.userregistrations;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.medisecure.authservice.configurations.RoleDeserializer;
 import com.medisecure.authservice.models.Role;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
@@ -29,6 +29,7 @@ public class RegistrationRequest {
     private String password;
 
     @NotNull(message = "Role is required")
+    @JsonDeserialize(using = RoleDeserializer.class)
     private Role role;
 
     @NotNull(message = "Accepting terms and conditions is required")

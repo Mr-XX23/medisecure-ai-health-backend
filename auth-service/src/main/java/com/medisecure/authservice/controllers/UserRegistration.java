@@ -3,6 +3,7 @@ package com.medisecure.authservice.controllers;
 import com.medisecure.authservice.dto.email.EmailVerificationRequest;
 import com.medisecure.authservice.dto.passwordreset.PasswordResetConfirmRequest;
 import com.medisecure.authservice.dto.passwordreset.PasswordResetRequest;
+import com.medisecure.authservice.dto.phone.PhoneVerificationOtpRequest;
 import com.medisecure.authservice.dto.phone.PhoneVerificationRequest;
 import com.medisecure.authservice.dto.userregistrations.RegistrationRequest;
 import com.medisecure.authservice.dto.userregistrations.RegistrationResponse;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.ModelAndView;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -65,28 +67,24 @@ public class UserRegistration {
     /**
      * Verify user's email address using the verification token.
      * @param token The email verification token.
-     * @return A response entity with verification status.
+     * @return A ModelAndView with verification status page.
      */
     @GetMapping("/verify-email")
-    public ResponseEntity<RegistrationResponse> verifyEmail(@RequestParam("token") @NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
-
-        RegistrationResponse response = verifyEmail.verifyEmail(token, httpRequest);
-        HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(response);
+    public ModelAndView verifyEmail(@RequestParam("token") @NotBlank(message = "Token is required") String token, HttpServletRequest httpRequest) {
+        return verifyEmail.verifyEmail(token, httpRequest);
     }
 
     /**
      * Verify user's phone number using the OTP.
-     * @param userId The user ID.
-     * @param otp The OTP code.
+     * @param request The verification request containing userId and OTP.
      * @return A response entity with verification status.
      */
     @PostMapping("/verify-phone")
     public ResponseEntity<RegistrationResponse> verifyPhone(
-            @RequestBody @NotBlank(message = "OTP is required") String otp,
-            @NotBlank(message = "ID is required") String userId, HttpServletRequest httpRequest) {
+            @Valid @RequestBody PhoneVerificationOtpRequest request,
+            HttpServletRequest httpRequest) {
 
-        RegistrationResponse response = verifyPhone.verifyPhone(userId, otp, httpRequest);
+        RegistrationResponse response = verifyPhone.verifyPhone(request.getOtp(), request.getUserId(), httpRequest);
         HttpStatus status = response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(response);
 

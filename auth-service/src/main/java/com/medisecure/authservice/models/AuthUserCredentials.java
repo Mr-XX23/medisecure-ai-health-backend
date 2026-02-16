@@ -16,6 +16,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Builder.Default;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 
@@ -70,7 +71,7 @@ public class AuthUserCredentials {
     private String phoneNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(unique = true, length = 20)
+    @Column(length = 20)
     @NotNull( message = " Role is mandatory")
     private Role role;
 
@@ -87,12 +88,15 @@ public class AuthUserCredentials {
     private Status status;
 
     @Column(nullable = false)
+    @Default
     private boolean isEmailVerified = false;
 
     @Column(nullable = false)
+    @Default
     private boolean isPhoneVerified = false;
 
     @Column(nullable = false)
+    @Default
     private boolean mfaEnabled = false;
 
     @CreatedDate

@@ -171,22 +171,27 @@ public class Registration {
                 httpRequest);
 
         // Send verification based on login type
+        boolean emailSent = false;
+        boolean smsSent = false;
         try {
             if (loginType == AuthUserCredentials.LoginType.EMAIL
                     || loginType == AuthUserCredentials.LoginType.BOTH) {
                 String verificationToken = otpService.generateEmailVerificationToken(savedUser.getAuthUserId());
                 emailService.sendVerificationEmail(savedUser.getEmail(), verificationToken,
                         savedUser.getAuthUserId());
+                emailSent = true;
             }
 
             if (loginType == AuthUserCredentials.LoginType.PHONE
                     || loginType == AuthUserCredentials.LoginType.BOTH) {
                 String otp = otpService.generatePhoneOtp(savedUser.getAuthUserId());
                 smsService.sendOtpSms(savedUser.getPhoneNumber(), otp, savedUser.getAuthUserId());
+                smsSent = true;
             }
         } catch (Exception e) {
             log.error("Failed to send verification for user {}: {}",
                     savedUser.getAuthUserId(), e.getMessage());
+            emailSent = false;
             // Registration still succeeds - user can request new verification later
         }
 
@@ -199,6 +204,8 @@ public class Registration {
                 .username(savedUser.getUsername())
                 .userId(savedUser.getAuthUserId().toString())
                 .email(savedUser.getEmail())
+                .emailVerificationSent(emailSent)
+                .smsVerificationSent(smsSent)
                 .build();
     }
 

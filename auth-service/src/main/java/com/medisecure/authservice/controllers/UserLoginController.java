@@ -6,6 +6,7 @@ import com.medisecure.authservice.dto.loginregistration.LoginResponse;
 import com.medisecure.authservice.services.userlogin.Logout;
 import com.medisecure.authservice.services.userlogin.RefreshToken;
 import com.medisecure.authservice.services.userlogin.UserLogin;
+import com.medisecure.authservice.services.userlogin.VerifyUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ public class UserLoginController {
     private final UserLogin userLogin;
     private final RefreshToken refreshTokenService;
     private final Logout logoutService;
+    private final VerifyUser verifyUserService;
 
     /**
      * Login a user with username and password.
@@ -34,6 +36,29 @@ public class UserLoginController {
     public ResponseEntity<LoginResponse> loginUser(HttpServletResponse response, HttpServletRequest request, @RequestBody @Valid LoginRequest loginRequest) {
         LoginResponse loginResponse = userLogin.loginUsers(loginRequest.getUsername(),  loginRequest.getPassword(), response, request);
        return ResponseEntity.ok(loginResponse);
+    }
+
+    /**
+     * Verify if the access token is valid and return user details.
+     * @param request HttpServletRequest
+     * @return A response entity with user details if token is valid.
+     */
+    @GetMapping("/verify-token")
+    public ResponseEntity<Map<String, Object>> verifyToken(HttpServletRequest request) {
+
+        String accessToken = CookieUtil.getCookieValue(request, "access_token")
+                .orElseThrow(() -> new IllegalArgumentException("No token provided"));
+
+        Map<String, Object> userDetails = verifyUserService.verifyAndGetUserDetails(accessToken);
+
+        Map<String, Object> responseBody = Map.of(
+                "message", "Token is valid",
+                "user", userDetails,
+                "success", true,
+                "timestamp", LocalDateTime.now().toString()
+        );
+
+        return ResponseEntity.ok(responseBody);
     }
 
     /**
