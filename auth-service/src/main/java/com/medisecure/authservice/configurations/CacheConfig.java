@@ -1,6 +1,8 @@
 package com.medisecure.authservice.configurations;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.medisecure.authservice.aspects.RateLimitAspect;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -38,5 +40,18 @@ public class CacheConfig {
                 .expireAfterWrite(5, TimeUnit.SECONDS) // 5 second TTL for userStatus
                 .maximumSize(10000) // Max 10k cached entries
                 .recordStats(); // Enable cache statistics for monitoring
+    }
+
+    /**
+     * Rate limiting cache with 60-second TTL.
+     * Stores rate limit buckets for IP-based rate limiting.
+     */
+    @Bean
+    public Cache<String, RateLimitAspect.RateLimitBucket> rateLimitCache() {
+        return Caffeine.newBuilder()
+                .expireAfterWrite(60, TimeUnit.SECONDS) // Match rate limit window
+                .maximumSize(50000) // Support more concurrent users
+                .recordStats()
+                .build();
     }
 }

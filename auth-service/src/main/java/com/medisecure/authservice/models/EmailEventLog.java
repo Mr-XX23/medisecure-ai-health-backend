@@ -1,6 +1,5 @@
 package com.medisecure.authservice.models;
 
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -67,6 +66,7 @@ public class EmailEventLog {
     private String errorMessage;
 
     @Column(nullable = false)
+    @Builder.Default
     private int retryAttempts = 0;
 
     @Column(nullable = false)

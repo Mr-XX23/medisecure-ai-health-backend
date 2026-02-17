@@ -71,6 +71,7 @@ public class SmsEventLog {
     private String errorCode;
 
     @Column(nullable = false)
+    @Builder.Default
     private int retryAttempts = 0;
 
     @Column(precision = 10, scale = 4)
@@ -87,6 +88,7 @@ public class SmsEventLog {
     private UUID authUserId;
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean isOtp = false;
 
     @Column(length = 5)

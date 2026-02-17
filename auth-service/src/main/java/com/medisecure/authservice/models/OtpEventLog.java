@@ -50,6 +50,7 @@ public class OtpEventLog {
     private LocalDateTime expiresAt;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean verified = false;
 
 }

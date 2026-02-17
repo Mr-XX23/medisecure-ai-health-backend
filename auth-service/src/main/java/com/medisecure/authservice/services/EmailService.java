@@ -50,6 +50,9 @@ public class EmailService {
     @Value("${app.url}")
     private String appUrl;
 
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
     @Value("${email.verification.url-pattern}")
     private String verificationUrlPattern;
 
@@ -60,12 +63,14 @@ public class EmailService {
     private int maxRetryAttempts;
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
-            "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
-    );
+            "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     @Async
-    @Transactional
-    public CompletableFuture<EmailResponse> sendVerificationEmail(@Email @NotBlank(message = "Email is mandatory") String email, @NotBlank String verificationToken, UUID authUserId) {
+    // Note: @Transactional removed from async method (incompatible)
+    // Repository save operations create their own transactions
+    public CompletableFuture<EmailResponse> sendVerificationEmail(
+            @Email @NotBlank(message = "Email is mandatory") String email, @NotBlank String verificationToken,
+            UUID authUserId) {
 
         try {
             // Validate email format
@@ -75,8 +80,7 @@ public class EmailService {
                         EmailResponse.builder()
                                 .success(false)
                                 .message("Invalid email format")
-                                .build()
-                );
+                                .build());
             }
 
             // Check rate limiting
@@ -86,8 +90,7 @@ public class EmailService {
                         EmailResponse.builder()
                                 .success(false)
                                 .message("Too many emails sent. Please try again later.")
-                                .build()
-                );
+                                .build());
             }
 
             // Build verification link
@@ -117,25 +120,24 @@ public class EmailService {
                     EmailResponse.builder()
                             .success(false)
                             .message("Failed to send verification email")
-                            .build()
-            );
+                            .build());
         }
     }
 
     @Async
-    @Transactional
-    public CompletableFuture<EmailResponse> sendPasswordResetEmail(@Email String email, @NotBlank String resetToken, UUID authUserId) {
+    // Note: @Transactional removed from async method (incompatible)
+    public CompletableFuture<EmailResponse> sendPasswordResetEmail(@Email String email, @NotBlank String resetToken,
+            UUID authUserId) {
         try {
             if (!isValidEmail(email) || isRateLimited(email)) {
                 return CompletableFuture.completedFuture(
                         EmailResponse.builder()
                                 .success(false)
                                 .message("Unable to send password reset email")
-                                .build()
-                );
+                                .build());
             }
 
-            String resetLink = String.format("%s/api/v1/auth/confirm-reset?token=%s", appUrl, resetToken);
+            String resetLink = String.format("%s/set-password?token=%s", frontendUrl, resetToken);
 
             Map<String, Object> variables = new HashMap<>();
             variables.put("appName", appName);
@@ -158,18 +160,15 @@ public class EmailService {
                     EmailResponse.builder()
                             .success(false)
                             .message("Failed to send password reset email")
-                            .build()
-            );
+                            .build());
         }
     }
 
-    @Retryable(
-            retryFor = {MailException.class, MessagingException.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 2000, multiplier = 2)
-    )
+    @Retryable(retryFor = { MailException.class,
+            MessagingException.class }, maxAttempts = 3, backoff = @Backoff(delay = 2000, multiplier = 2))
     @Transactional
-    public CompletableFuture<EmailResponse> sendEmailWithRetry( @Valid EmailRequest request, EmailEventLog.EmailType emailType, UUID authUserId) {
+    public CompletableFuture<EmailResponse> sendEmailWithRetry(@Valid EmailRequest request,
+            EmailEventLog.EmailType emailType, UUID authUserId) {
         String messageId = UUID.randomUUID().toString();
         EmailEventLog eventLog = null;
 
@@ -186,7 +185,6 @@ public class EmailService {
                     .retryAttempts(0)
                     .build();
 
-
             eventLog = emailEventLogRepository.save(eventLog);
 
             // Create MIME message
@@ -194,8 +192,7 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(
                     mimeMessage,
                     MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                    StandardCharsets.UTF_8.name()
-            );
+                    StandardCharsets.UTF_8.name());
 
             helper.setFrom(fromEmail, appName);
             helper.setTo(request.getTo());
@@ -234,9 +231,8 @@ public class EmailService {
                             .messageId(messageId)
                             .sentAt(LocalDateTime.now())
                             .retryAttempts(eventLog.getRetryAttempts())
-                            .build()
-            );
-    } catch (MailException | MessagingException e) {
+                            .build());
+        } catch (MailException | MessagingException e) {
             log.error("Failed to send email to: {} - Error: {}", request.getTo(), e.getMessage(), e);
 
             if (eventLog != null) {
@@ -262,7 +258,8 @@ public class EmailService {
     }
 
     @Recover
-    public CompletableFuture<EmailResponse> recoverFromEmailFailure( Exception e, EmailRequest request, EmailEventLog.EmailType emailType, Long authUserId) {
+    public CompletableFuture<EmailResponse> recoverFromEmailFailure(Exception e, EmailRequest request,
+            EmailEventLog.EmailType emailType, Long authUserId) {
 
         log.error("All retry attempts failed for email to: {}", request.getTo(), e);
 
@@ -271,8 +268,7 @@ public class EmailService {
                         .success(false)
                         .message("Failed to send email after multiple attempts")
                         .retryAttempts(maxRetryAttempts)
-                        .build()
-        );
+                        .build());
     }
 
     private String processTemplate(String templateName, Map<String, Object> variables) {
@@ -297,7 +293,7 @@ public class EmailService {
         String lowerEmail = email.toLowerCase();
 
         // Check for common disposable email domains
-        String[] disposableDomains = {"tempmail.com", "throwaway.email", "guerrillamail.com"};
+        String[] disposableDomains = { "tempmail.com", "throwaway.email", "guerrillamail.com" };
         for (String domain : disposableDomains) {
             if (lowerEmail.endsWith("@" + domain)) {
                 log.warn("Disposable email detected: {}", email);
@@ -327,4 +323,3 @@ public class EmailService {
         return stats;
     }
 }
-

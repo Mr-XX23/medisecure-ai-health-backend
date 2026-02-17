@@ -7,7 +7,6 @@ import com.medisecure.authservice.exceptions.ResourceNotFoundException;
 import com.medisecure.authservice.exceptions.UnauthorizedException;
 import com.medisecure.authservice.models.AuthUserCredentials;
 import com.medisecure.authservice.repository.UserRepository;
-import com.medisecure.authservice.services.JwtService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,11 +28,11 @@ import java.util.UUID;
 public class UserDetailsService {
 
     private final UserRepository userRepository;
-    private final JwtService jwtService;
 
     /**
      * Get user details by various lookup methods with caching
-     * @param request UserDetailsRequest
+     * 
+     * @param request     UserDetailsRequest
      * @param httpRequest HttpServletRequest for security logging
      * @return UserDetailsResponse
      */
@@ -45,7 +44,8 @@ public class UserDetailsService {
         // Validate that at least one identifier is provided
         if (!hasValidIdentifier(request)) {
             log.warn("User details request missing identifier from IP: {}", getClientIp(httpRequest));
-            throw new BadRequestException("At least one identifier (userId, email, phoneNumber, or username) must be provided");
+            throw new BadRequestException(
+                    "At least one identifier (userId, email, phoneNumber, or username) must be provided");
         }
 
         // Find user by provided identifier
@@ -62,6 +62,7 @@ public class UserDetailsService {
 
     /**
      * Get current authenticated user details
+     * 
      * @param httpRequest HttpServletRequest
      * @return UserDetailsResponse
      */
@@ -85,7 +86,8 @@ public class UserDetailsService {
     /**
      * Get user details by user ID with role-based access control
      * Only admins or the user themselves can access
-     * @param userId String
+     * 
+     * @param userId      String
      * @param httpRequest HttpServletRequest
      * @return UserDetailsResponse
      */
@@ -118,6 +120,7 @@ public class UserDetailsService {
 
     /**
      * Verify user status (lightweight check for external services)
+     * 
      * @param userId String
      * @return UserDetailsResponse with minimal information
      */
@@ -168,10 +171,10 @@ public class UserDetailsService {
 
         if (includeFullDetails) {
             builder.email(user.getEmail())
-                   .phoneNumber(user.getPhoneNumber())
-                   .createdAt(user.getCreatedAt())
-                   .updatedAt(user.getUpdatedAt())
-                   .lastLoginAt(user.getLastLoginAt());
+                    .phoneNumber(user.getPhoneNumber())
+                    .createdAt(user.getCreatedAt())
+                    .updatedAt(user.getUpdatedAt())
+                    .lastLoginAt(user.getLastLoginAt());
         }
 
         return builder.build();
@@ -202,7 +205,8 @@ public class UserDetailsService {
     }
 
     /**
-     * Verify access rights - users can only access their own data unless they're admin
+     * Verify access rights - users can only access their own data unless they're
+     * admin
      */
     private void verifyAccessRights(AuthUserCredentials targetUser, HttpServletRequest httpRequest) {
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -218,7 +222,7 @@ public class UserDetailsService {
         // Check if user is accessing their own data or is admin/super_admin
         boolean isOwnData = currentUser.getAuthUserId().equals(targetUser.getAuthUserId());
         boolean isAdmin = currentUser.getRole().name().equals("ADMIN") ||
-                         currentUser.getRole().name().equals("SUPER_ADMIN");
+                currentUser.getRole().name().equals("SUPER_ADMIN");
 
         if (!isOwnData && !isAdmin) {
             log.warn("Unauthorized access attempt: User {} tried to access user {} data from IP: {}",
@@ -232,9 +236,9 @@ public class UserDetailsService {
      */
     private boolean hasValidIdentifier(UserDetailsRequest request) {
         return request.getUserId() != null ||
-               request.getEmail() != null ||
-               request.getPhoneNumber() != null ||
-               request.getUsername() != null;
+                request.getEmail() != null ||
+                request.getPhoneNumber() != null ||
+                request.getUsername() != null;
     }
 
     /**
@@ -252,7 +256,8 @@ public class UserDetailsService {
      * Mask email for logging
      */
     private String maskEmail(String email) {
-        if (email == null || !email.contains("@")) return "***";
+        if (email == null || !email.contains("@"))
+            return "***";
         String[] parts = email.split("@");
         return parts[0].substring(0, Math.min(2, parts[0].length())) + "***@" + parts[1];
     }
@@ -261,7 +266,8 @@ public class UserDetailsService {
      * Mask phone for logging
      */
     private String maskPhone(String phone) {
-        if (phone == null || phone.length() < 4) return "***";
+        if (phone == null || phone.length() < 4)
+            return "***";
         return "***" + phone.substring(phone.length() - 4);
     }
 
@@ -276,4 +282,3 @@ public class UserDetailsService {
         return request.getRemoteAddr();
     }
 }
-

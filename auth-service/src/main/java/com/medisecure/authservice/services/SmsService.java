@@ -56,20 +56,22 @@ public class SmsService {
 
     // Blocked/Invalid country codes for security
     private static final List<String> BLOCKED_COUNTRY_CODES = Arrays.asList(
-        "+850", // North Korea
-        "+963"  // Syria
+            "+850", // North Korea
+            "+963" // Syria
     );
 
     /**
      * Sends OTP SMS to user's phone number
+     * 
      * @param phoneNumber Recipient phone number in E.164 format
-     * @param otp OTP code to send
+     * @param otp         OTP code to send
      */
     @Async
-    @Transactional
+    // Note: @Transactional removed from async method (incompatible with @Async)
+    // Repository save operations in sendSmsWithRetry() create their own
+    // transactions
     public CompletableFuture<SmsResponse> sendOtpSms(
-            @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format")
-            @NotBlank String phoneNumber,
+            @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format") @NotBlank String phoneNumber,
             @NotBlank String otp,
             @NotBlank UUID authUserId) {
 
@@ -81,37 +83,34 @@ public class SmsService {
             if (!isValidPhoneNumber(normalizedPhone)) {
                 log.error("Invalid phone number format: {}", phoneNumber);
                 return CompletableFuture.completedFuture(
-                    SmsResponse.builder()
-                        .success(false)
-                        .message("Invalid phone number format")
-                        .build()
-                );
+                        SmsResponse.builder()
+                                .success(false)
+                                .message("Invalid phone number format")
+                                .build());
             }
 
             // Check rate limiting for OTP
             if (isOtpRateLimited(normalizedPhone)) {
                 log.warn("OTP rate limit exceeded for phone: {}", maskPhoneNumber(normalizedPhone));
                 return CompletableFuture.completedFuture(
-                    SmsResponse.builder()
-                        .success(false)
-                        .message("Too many OTP requests. Please try again later.")
-                        .build()
-                );
+                        SmsResponse.builder()
+                                .success(false)
+                                .message("Too many OTP requests. Please try again later.")
+                                .build());
             }
 
             // Build OTP message
             String message = String.format(
-                "Your %s verification code is: %s\n\nThis code will expire in 15 minutes.\n\nIf you didn't request this code, please ignore this message.",
-                appName,
-                otp
-            );
+                    "Your %s verification code is: %s\n\nThis code will expire in 15 minutes.\n\nIf you didn't request this code, please ignore this message.",
+                    appName,
+                    otp);
 
             // Create SMS request
             SmsRequest request = SmsRequest.builder()
-                .to(normalizedPhone)
-                .message(message)
-                .fromNumber(twilioConfig.getFromPhoneNumber())
-                .build();
+                    .to(normalizedPhone)
+                    .message(message)
+                    .fromNumber(twilioConfig.getFromPhoneNumber())
+                    .build();
 
             // Send SMS
             return sendSmsWithRetry(request, SmsEventLog.SmsType.OTP_VERIFICATION, authUserId, true);
@@ -119,25 +118,26 @@ public class SmsService {
         } catch (Exception e) {
             log.error("Unexpected error sending OTP SMS to: {}", maskPhoneNumber(phoneNumber), e);
             return CompletableFuture.completedFuture(
-                SmsResponse.builder()
-                    .success(false)
-                    .message("Failed to send OTP SMS")
-                    .build()
-            );
+                    SmsResponse.builder()
+                            .success(false)
+                            .message("Failed to send OTP SMS")
+                            .build());
         }
     }
 
     /**
      * Sends password reset OTP via SMS
+     * 
      * @param phoneNumber Recipient phone number
-     * @param otp Reset OTP
-     * @param authUserId User ID
+     * @param otp         Reset OTP
+     * @param authUserId  User ID
      */
     @Async
-    @Transactional
+    // Note: @Transactional removed from async method (incompatible with @Async)
+    // Repository save operations in sendSmsWithRetry() create their own
+    // transactions
     public CompletableFuture<SmsResponse> sendPasswordResetSms(
-            @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format")
-            String phoneNumber,
+            @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format") String phoneNumber,
             @NotBlank String otp,
             UUID authUserId) {
 
@@ -146,50 +146,45 @@ public class SmsService {
 
             if (!isValidPhoneNumber(normalizedPhone) || isOtpRateLimited(normalizedPhone)) {
                 return CompletableFuture.completedFuture(
-                    SmsResponse.builder()
-                        .success(false)
-                        .message("Unable to send password reset SMS")
-                        .build()
-                );
+                        SmsResponse.builder()
+                                .success(false)
+                                .message("Unable to send password reset SMS")
+                                .build());
             }
 
             String message = String.format(
-                "Your %s password reset code is: %s\n\nThis code expires in 15 minutes.\n\nIf you didn't request this, please ignore this message.",
-                appName,
-                otp
-            );
+                    "Your %s password reset code is: %s\n\nThis code expires in 15 minutes.\n\nIf you didn't request this, please ignore this message.",
+                    appName,
+                    otp);
 
             SmsRequest request = SmsRequest.builder()
-                .to(normalizedPhone)
-                .message(message)
-                .fromNumber(twilioConfig.getFromPhoneNumber())
-                .build();
+                    .to(normalizedPhone)
+                    .message(message)
+                    .fromNumber(twilioConfig.getFromPhoneNumber())
+                    .build();
 
             return sendSmsWithRetry(request, SmsEventLog.SmsType.PASSWORD_RESET, authUserId, true);
 
         } catch (Exception e) {
             log.error("Error sending password reset SMS to: {}", maskPhoneNumber(phoneNumber), e);
             return CompletableFuture.completedFuture(
-                SmsResponse.builder()
-                    .success(false)
-                    .message("Failed to send password reset SMS")
-                    .build()
-            );
+                    SmsResponse.builder()
+                            .success(false)
+                            .message("Failed to send password reset SMS")
+                            .build());
         }
     }
 
     /**
      * Generic method to send SMS with retry mechanism
-     * @param request SMS request details
-     * @param smsType Type of SMS
+     * 
+     * @param request    SMS request details
+     * @param smsType    Type of SMS
      * @param authUserId User ID (optional)
-     * @param isOtp Whether this is an OTP message
+     * @param isOtp      Whether this is an OTP message
      */
-    @Retryable(
-        retryFor = {TwilioException.class, ApiException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 3000, multiplier = 2)
-    )
+    @Retryable(retryFor = { TwilioException.class,
+            ApiException.class }, maxAttempts = 3, backoff = @Backoff(delay = 3000, multiplier = 2))
     @Transactional
     public CompletableFuture<SmsResponse> sendSmsWithRetry(
             @Valid SmsRequest request,
@@ -204,11 +199,10 @@ public class SmsService {
             if (!isOtp && isGeneralRateLimited(request.getTo())) {
                 log.warn("General SMS rate limit exceeded for phone: {}", maskPhoneNumber(request.getTo()));
                 return CompletableFuture.completedFuture(
-                    SmsResponse.builder()
-                        .success(false)
-                        .message("SMS rate limit exceeded. Please try again later.")
-                        .build()
-                );
+                        SmsResponse.builder()
+                                .success(false)
+                                .message("SMS rate limit exceeded. Please try again later.")
+                                .build());
             }
 
             // Extract country code
@@ -216,26 +210,26 @@ public class SmsService {
 
             // Create event log entry
             eventLog = SmsEventLog.builder()
-                .recipient(request.getTo())
-                .fromNumber(request.getFromNumber() != null ? request.getFromNumber() : twilioConfig.getFromPhoneNumber())
-                .messageContent(request.getMessage())
-                .smsType(smsType)
-                .status(SmsEventLog.SmsStatus.PENDING)
-                .createdAt(LocalDateTime.now())
-                .authUserId(authUserId)
-                .isOtp(isOtp)
-                .countryCode(countryCode)
-                .retryAttempts(0)
-                .build();
+                    .recipient(request.getTo())
+                    .fromNumber(request.getFromNumber() != null ? request.getFromNumber()
+                            : twilioConfig.getFromPhoneNumber())
+                    .messageContent(request.getMessage())
+                    .smsType(smsType)
+                    .status(SmsEventLog.SmsStatus.PENDING)
+                    .createdAt(LocalDateTime.now())
+                    .authUserId(authUserId)
+                    .isOtp(isOtp)
+                    .countryCode(countryCode)
+                    .retryAttempts(0)
+                    .build();
 
             eventLog = smsEventLogRepository.save(eventLog);
 
             // Send SMS via Twilio
             Message message = Message.creator(
-                new PhoneNumber(request.getTo()),
-                new PhoneNumber(eventLog.getFromNumber()),
-                request.getMessage()
-            ).create();
+                    new PhoneNumber(request.getTo()),
+                    new PhoneNumber(eventLog.getFromNumber()),
+                    request.getMessage()).create();
 
             log.info(String.valueOf(message));
 
@@ -255,23 +249,22 @@ public class SmsService {
             smsEventLogRepository.save(eventLog);
 
             log.info("SMS sent successfully to: {} with SID: {}",
-                maskPhoneNumber(request.getTo()), message.getSid());
+                    maskPhoneNumber(request.getTo()), message.getSid());
 
             return CompletableFuture.completedFuture(
-                SmsResponse.builder()
-                    .success(true)
-                    .message("SMS sent successfully")
-                    .messageSid(message.getSid())
-                    .status(message.getStatus().toString())
-                    .sentAt(LocalDateTime.now())
-                    .retryAttempts(eventLog.getRetryAttempts())
-                        .cost(message.getPrice() != null ? new BigDecimal(message.getPrice()) : null)
-                    .build()
-            );
+                    SmsResponse.builder()
+                            .success(true)
+                            .message("SMS sent successfully")
+                            .messageSid(message.getSid())
+                            .status(message.getStatus().toString())
+                            .sentAt(LocalDateTime.now())
+                            .retryAttempts(eventLog.getRetryAttempts())
+                            .cost(message.getPrice() != null ? new BigDecimal(message.getPrice()) : null)
+                            .build());
 
         } catch (ApiException e) {
             log.error("Twilio API error sending SMS to: {} - Code: {}, Message: {}",
-                maskPhoneNumber(request.getTo()), e.getCode(), e.getMessage());
+                    maskPhoneNumber(request.getTo()), e.getCode(), e.getMessage());
 
             if (eventLog != null) {
                 eventLog.setStatus(SmsEventLog.SmsStatus.FAILED);
@@ -287,12 +280,11 @@ public class SmsService {
             }
 
             return CompletableFuture.completedFuture(
-                SmsResponse.builder()
-                    .success(false)
-                    .message("SMS delivery failed: " + e.getMessage())
-                    .errorCode(String.valueOf(e.getCode()))
-                    .build()
-            );
+                    SmsResponse.builder()
+                            .success(false)
+                            .message("SMS delivery failed: " + e.getMessage())
+                            .errorCode(String.valueOf(e.getCode()))
+                            .build());
 
         } catch (TwilioException e) {
             log.error("Twilio error sending SMS to: {}", maskPhoneNumber(request.getTo()), e);
@@ -333,12 +325,11 @@ public class SmsService {
         log.error("All retry attempts failed for SMS to: {}", maskPhoneNumber(request.getTo()), e);
 
         return CompletableFuture.completedFuture(
-            SmsResponse.builder()
-                .success(false)
-                .message("Failed to send SMS after multiple attempts")
-                .retryAttempts(maxRetryAttempts)
-                .build()
-        );
+                SmsResponse.builder()
+                        .success(false)
+                        .message("Failed to send SMS after multiple attempts")
+                        .retryAttempts(maxRetryAttempts)
+                        .build());
     }
 
     /**
@@ -448,12 +439,12 @@ public class SmsService {
     private boolean isRetryableError(int errorCode) {
         // Retryable error codes
         List<Integer> retryableCodes = Arrays.asList(
-            20429, // Too Many Requests
-            30001, // Queue overflow
-            30002, // Account suspended
-            30003, // Unreachable destination handset
-            30005, // Unknown destination handset
-            30006  // Landline or unreachable carrier
+                20429, // Too Many Requests
+                30001, // Queue overflow
+                30002, // Account suspended
+                30003, // Unreachable destination handset
+                30005, // Unknown destination handset
+                30006 // Landline or unreachable carrier
         );
 
         return retryableCodes.contains(errorCode);

@@ -5,6 +5,7 @@ import com.medisecure.authservice.exceptions.BadRequestException;
 import com.medisecure.authservice.exceptions.ForbiddenException;
 import com.medisecure.authservice.repository.UserRepository;
 import com.medisecure.authservice.models.AuthUserCredentials;
+import com.medisecure.authservice.services.AccountLockoutService;
 import com.medisecure.authservice.services.CookiesService;
 import com.medisecure.authservice.services.JwtService;
 import com.medisecure.authservice.services.TokenService;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -32,10 +34,13 @@ public class UserLogin {
     private final TokenService tokenService;
     private final CookiesService cookiesService;
     private final LoginUtilities loginUtilities;
+    private final AccountLockoutService accountLockoutService;
 
     // Login Users
-    @Transactional
-    public LoginResponse loginUsers(@NotBlank(message = "Username is needed") String username, @NotBlank(message = "Password is needed") String password, HttpServletResponse response, HttpServletRequest request) {
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public LoginResponse loginUsers(@NotBlank(message = "Username is needed") String username,
+            @NotBlank(message = "Password is needed") String password, HttpServletResponse response,
+            HttpServletRequest request) {
 
         try {
 
@@ -49,11 +54,23 @@ public class UserLogin {
                 throw new BadRequestException("Username or password cannot be blank");
             }
 
+            // SECURITY: Check if account is locked due to failed attempts
+            if (accountLockoutService.isAccountLocked(username)) {
+                long minutesLeft = accountLockoutService.getMinutesUntilUnlock(username);
+                log.warn("Login attempted for locked account: {}. Unlock in {} minutes", username, minutesLeft);
+                loginUtilities.saveLoginEvent(null, "FAILED_LOGIN_LOCKED", "Account temporarily locked", ipAddress,
+                        userAgent);
+                throw new ForbiddenException(String.format(
+                        "Account temporarily locked due to too many failed attempts. Try again in %d minutes.",
+                        minutesLeft));
+            }
+
             // check if user is existing in the database
             AuthUserCredentials user = userRepository.findByEmailOrPhoneNumber(username, username)
                     .orElseThrow(() -> {
                         log.error("User not found with username: {}", username);
                         loginUtilities.saveLoginEvent(null, "FAILED_LOGIN", "User not found", ipAddress, userAgent);
+                        accountLockoutService.recordFailedAttempt(username); // Record attempt
                         return new BadRequestException("Invalid username or password");
                     });
 
@@ -61,6 +78,11 @@ public class UserLogin {
             if (!passwordEncoder.matches(password, user.getPasswordHash())) {
                 log.error("Invalid password for user: {}", username);
                 loginUtilities.saveLoginEvent(user, "FAILED_LOGIN", "Invalid password attempt", ipAddress, userAgent);
+                accountLockoutService.recordFailedAttempt(username); // Record failed attempt
+
+                int attempts = accountLockoutService.getFailedAttempts(username);
+                log.warn("Failed login attempt {} for user: {}", attempts, username);
+
                 throw new BadRequestException("Invalid credentials");
             }
 
@@ -75,7 +97,8 @@ public class UserLogin {
             if (Set.of(AuthUserCredentials.Status.LOCKED, AuthUserCredentials.Status.SUSPENDED)
                     .contains(user.getStatus())) {
                 log.error("User account is locked or suspended: {}", username);
-                loginUtilities.saveLoginEvent(user, "FAILED_LOGIN", "Account is locked or suspended", ipAddress, userAgent);
+                loginUtilities.saveLoginEvent(user, "FAILED_LOGIN", "Account is locked or suspended", ipAddress,
+                        userAgent);
                 throw new ForbiddenException("Account is blocked or suspended");
             }
 
@@ -87,6 +110,9 @@ public class UserLogin {
             tokenService.saveAccessToken(user.getAuthUserId(), accessToken);
             tokenService.saveRefreshToken(user.getAuthUserId(), refreshToken);
 
+            // SECURITY: Reset failed login attempts after successful login
+            accountLockoutService.resetFailedAttempts(username);
+
             // Update last login timestamp
             user.setLastLoginAt(LocalDateTime.now());
             userRepository.save(user);
@@ -96,11 +122,8 @@ public class UserLogin {
             cookiesService.setRefreshTokenCookie(response, refreshToken);
 
             // Save successful login log
-            loginUtilities.saveLoginEvent(user, "SUCCESSFUL_LOGIN", "User logged in successfully", ipAddress, userAgent);
-
-            // Update last login timestamp
-            user.setLastLoginAt(LocalDateTime.now());
-            userRepository.save(user);
+            loginUtilities.saveLoginEvent(user, "SUCCESSFUL_LOGIN", "User logged in successfully", ipAddress,
+                    userAgent);
 
             // Prepare response
             LoginResponse loginResponse = getLoginResponse(user);
@@ -131,4 +154,3 @@ public class UserLogin {
     }
 
 }
-

@@ -32,15 +32,16 @@ public class User {
 
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
+    @Builder.Default
     private Status status = Status.PENDING;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
-    private LocalDateTime  createdAt;
+    private LocalDateTime createdAt;
 
     @LastModifiedDate
     @Column(nullable = false)
-    private LocalDateTime  updatedAt;
+    private LocalDateTime updatedAt;
 
-    private LocalDateTime  lastLoginAt;
+    private LocalDateTime lastLoginAt;
 }

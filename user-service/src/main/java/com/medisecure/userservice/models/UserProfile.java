@@ -15,7 +15,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-
 @Entity
 @Table(name = "user_profiles")
 @Data
@@ -25,7 +24,7 @@ import java.time.LocalDateTime;
 public class UserProfile {
 
     private enum Gender {
-        MALE,FEMALE,THIRD,OTHER
+        MALE, FEMALE, THIRD, OTHER
     }
 
     @Id
@@ -55,6 +54,7 @@ public class UserProfile {
     @Enumerated(EnumType.STRING)
     @NotBlank(message = "Gender is required")
     @Pattern(regexp = "Male|Female|Thrid|Other", message = "Gender must be Male, Female, or Other")
+    @Builder.Default
     private Gender gender = Gender.OTHER;
 
     @Size(min = 10, max = 10, message = "Phone number must be 10 digits")

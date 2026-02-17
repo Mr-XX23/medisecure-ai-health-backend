@@ -20,7 +20,6 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -29,8 +28,6 @@ public class OtpService {
     private final OtpEventLogRepository otpEventLogRepository;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private final PasswordEncoder passwordEncoder;
-    private static final int MAX_RETRY_ATTEMPTS = 5;
-
 
     @Value("${otp.expiry.minutes}")
     private int otpExpiryMinutes;
@@ -84,7 +81,6 @@ public class OtpService {
         // Hash the OTP before storing
         String otpHash = passwordEncoder.encode(otp);
 
-
         // Create OTP event log entry
         OtpEventLog otpLog = OtpEventLog.builder()
                 .authUser(user)
@@ -95,7 +91,6 @@ public class OtpService {
                 .expiresAt(LocalDateTime.now().plusMinutes(otpExpiryMinutes))
                 .verified(false)
                 .build();
-
 
         otpEventLogRepository.save(otpLog);
 
@@ -144,7 +139,8 @@ public class OtpService {
     private void invalidateExistingOtps(UUID authUserId, String otpType) {
         LocalDateTime now = LocalDateTime.now();
 
-        // Use repository method to find active OTPs for the user and type, then mark them as verified (invalidated)
+        // Use repository method to find active OTPs for the user and type, then mark
+        // them as verified (invalidated)
         List<OtpEventLog> activeOtps = otpEventLogRepository
                 .findAllByAuthUser_AuthUserIdAndOtpTypeAndVerifiedFalseAndExpiresAtAfter(
                         authUserId, otpType, now);
@@ -168,35 +164,10 @@ public class OtpService {
     }
 
     private String generateUniqueNumericOtp(UUID authUserId) {
-        int attempts = 0;
-        String otp;
-
-        do {
-            if (attempts >= MAX_RETRY_ATTEMPTS) {
-                log.error("Failed to generate unique OTP after {} attempts for user ID: {}",
-                        MAX_RETRY_ATTEMPTS, authUserId);
-                throw new RuntimeException("Failed to generate unique OTP. Please try again.");
-            }
-
-            // Generate cryptographically secure random number
-            int randomNum = SECURE_RANDOM.nextInt(1000000); // 0 to 999999
-            otp = String.format("%06d", randomNum); // Pad with leading zeros
-
-            attempts++;
-
-        } while (isDuplicateOtp(otp));
-
-        return otp;
+        // Generate cryptographically secure random 6-digit OTP
+        // OTP collision probability: 1/1,000,000 - negligible risk
+        // Bcrypt hashing makes duplicate detection impractical and unnecessary
+        int randomNum = SECURE_RANDOM.nextInt(1000000); // 0 to 999999
+        return String.format("%06d", randomNum); // Pad with leading zeros
     }
-
-    private boolean isDuplicateOtp(String otp) {
-        // Check for active OTPs (not expired, not verified) that might match
-        LocalDateTime now = LocalDateTime.now();
-
-        return otpEventLogRepository.findAll().stream()
-                .filter(log -> !log.getVerified())
-                .filter(log -> log.getExpiresAt().isAfter(now))
-                .anyMatch(log -> passwordEncoder.matches(otp, log.getOtpCode()));
-    }
-
 }

@@ -47,6 +47,7 @@ public class TokenStore {
     private String deviceFingerprint;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean revoked = false;
 
     @Column(length = 16)

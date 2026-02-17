@@ -3,7 +3,6 @@ package com.medisecure.authservice.services.userlogin;
 import com.medisecure.authservice.exceptions.BadRequestException;
 import com.medisecure.authservice.exceptions.ForbiddenException;
 import com.medisecure.authservice.models.AuthUserCredentials;
-import com.medisecure.authservice.repository.AuthSecurityEventRepository;
 import com.medisecure.authservice.repository.UserRepository;
 import com.medisecure.authservice.services.CookiesService;
 import com.medisecure.authservice.services.JwtService;
@@ -57,7 +56,8 @@ public class RefreshToken {
             if (Set.of(AuthUserCredentials.Status.LOCKED, AuthUserCredentials.Status.SUSPENDED)
                     .contains(user.getStatus())) {
                 log.error("User account is locked or suspended: {}", user.getUsername());
-                loginUtilities.saveLoginEvent(user, "FAILED_TOKEN_REFRESH", "Account is " + user.getStatus().name().toLowerCase(), ipAddress, userAgent);
+                loginUtilities.saveLoginEvent(user, "FAILED_TOKEN_REFRESH",
+                        "Account is " + user.getStatus().name().toLowerCase(), ipAddress, userAgent);
                 throw new ForbiddenException("Account is blocked or suspended");
             }
 
@@ -71,15 +71,15 @@ public class RefreshToken {
             cookiesService.setAccessTokenCookie(response, newAccessToken);
 
             // Log token refresh event
-            loginUtilities.saveLoginEvent(user, "TOKEN_REFRESH_SUCCESS", "Tokens refreshed successfully", ipAddress, userAgent);
+            loginUtilities.saveLoginEvent(user, "TOKEN_REFRESH_SUCCESS", "Tokens refreshed successfully", ipAddress,
+                    userAgent);
 
             log.info("Generated new access token for user ID: {}", userId);
             return newAccessToken;
-        } catch ( Exception e) {
+        } catch (Exception e) {
             log.error("Error refreshing access token: {}", e.getMessage());
             throw new BadRequestException("Error refreshing access token");
         }
     }
-
 
 }
