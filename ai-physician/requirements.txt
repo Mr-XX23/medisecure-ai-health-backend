@@ -1,0 +1,24 @@
+# Core Framework
+fastapi==0.129.0
+uvicorn[standard]==0.41.0
+pydantic==2.12.5
+pydantic-settings==2.1.0
+
+# AI/LLM
+langgraph==1.0.8
+langgraph-prebuilt==1.0.7
+langchain-core==1.2.13
+langchain-openai==1.1.9
+openai==2.21.0
+
+# Database
+motor==3.6.0         
+pymongo==4.9.0       
+
+# Authentication
+pyjwt[crypto]==2.9.0  
+cryptography==44.0.0  
+
+# Utilities
+python-dotenv==1.0.0
+httpx==0.28.1

@@ -48,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Jwt jwt = jwtService.validateAndDecodeToken(accessToken);
                 String username = jwt.getSubject();
 
-                // SECURITY FIX: Step 2: Check if token has been revoked (CRITICAL)
+                // Step 2: Check if token has been revoked (CRITICAL)
                 // Without this check, logout doesn't actually work!
                 if (tokenService.isTokenRevoked(accessToken)) {
                     log.warn("Revoked token attempted for user: {}", username);
