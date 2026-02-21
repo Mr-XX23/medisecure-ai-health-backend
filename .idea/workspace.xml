@@ -4,40 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dbe2e314-1283-4cd0-bd79-93671831ddec" name="Changes" comment="fix: Changes on service properties for Eureka configuration and improve security event logging">
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/OAuth2AuthenticationSuccessHandler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/Role.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/LoginUtilities.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/Logout.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/RefreshToken.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userlogin/UserLogin.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/Registration.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/ResetPassword.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/SendEmailVerification.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/SendPhoneVerification.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/VerifyEmail.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/userregistration/VerifyPhone.java" afterDir="false" />
+    <list default="true" id="dbe2e314-1283-4cd0-bd79-93671831ddec" name="Changes" comment="feat: Introduce user roles and enhance user registration with email and phone verification features">
       <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/JwtAuthenticationFilter.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/JwtAuthenticationFilter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/configurations/SecurityConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/OAuth2Controller.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/OAuth2Controller.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserLoginController.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserLoginController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserRegistration.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/controllers/UserRegistration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/loginregistration/LoginResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/loginregistration/LoginResponse.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/userregistrations/RegistrationRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/dto/userregistrations/RegistrationRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/AuthUserCredentials.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/models/AuthUserCredentials.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/OtpEventLogRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/OtpEventLogRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/TokenStoreRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/repository/TokenStoreRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OAuth2Service.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OAuth2Service.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OtpService.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/OtpService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/TokenService.java" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/TokenService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/UserLoginService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/java/com/medisecure/authservice/services/UserRegistrationService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/auth-service/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/auth-service/src/main/resources/application.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config-server/src/main/resources/config/auth-service.properties" beforeDir="false" afterPath="$PROJECT_DIR$/config-server/src/main/resources/config/auth-service.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config-server/src/main/resources/config/gateway-service.properties" beforeDir="false" afterPath="$PROJECT_DIR$/config-server/src/main/resources/config/gateway-service.properties" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -95,7 +65,6 @@
       </MavenGeneralSettings>
     </option>
   </component>
-  <component name="PhpDebugGeneral" listening_started="true" />
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 0
@@ -350,7 +319,13 @@
       <workItem from="1770466826000" duration="1862000" />
       <workItem from="1770469035306" duration="20558000" />
       <workItem from="1770568228833" duration="18572000" />
-      <workItem from="1770623184057" duration="2500000" />
+      <workItem from="1770623184057" duration="2565000" />
+      <workItem from="1770818381530" duration="3639000" />
+      <workItem from="1770890253103" duration="3439000" />
+      <workItem from="1770893778289" duration="12205000" />
+      <workItem from="1771001352769" duration="13344000" />
+      <workItem from="1771245048017" duration="3002000" />
+      <workItem from="1771566527158" duration="781000" />
     </task>
     <task id="LOCAL-00001" summary="added user service, auth service and config management for Eureka server">
       <option name="closed" value="true" />
@@ -400,7 +375,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770195227938</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="feat: Introduce user roles and enhance user registration with email and phone verification features">
+      <option name="closed" value="true" />
+      <created>1770627629420</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1770627629420</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -412,7 +395,8 @@
     <MESSAGE value="add OAuth2 login functionality and security event logging; configure async processing and exception handling" />
     <MESSAGE value="implement OAuth2 login with Google; add async logging for security events; refactor user registration and verification processes" />
     <MESSAGE value="fix: Changes on service properties for Eureka configuration and improve security event logging" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: Changes on service properties for Eureka configuration and improve security event logging" />
+    <MESSAGE value="feat: Introduce user roles and enhance user registration with email and phone verification features" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Introduce user roles and enhance user registration with email and phone verification features" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
