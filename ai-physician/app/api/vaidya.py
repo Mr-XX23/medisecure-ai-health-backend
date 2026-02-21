@@ -20,6 +20,8 @@ from app.models.messages import (
     SessionDetailsResponse,
     AssessmentHistoryResponse,
     AssessmentSummary,
+    SessionSummary,
+    UserSessionsResponse,
 )
 from app.models.triage import SessionStatus
 from app.services.session_service import get_session_service
@@ -68,7 +70,7 @@ async def start_session(current_user: Dict[str, str] = Depends(get_current_user)
 
     # Create new session
     session = await session_service.create_session(
-        user_id=current_user["user_id"], user_email=current_user["email"]
+        user_id=current_user["userId"], user_email=current_user["email"]
     )
 
     # Get the Vaidya-orchestrated multi-agent graph
@@ -79,7 +81,7 @@ async def start_session(current_user: Dict[str, str] = Depends(get_current_user)
         "messages": [],
         "conversation_summary": None,
         "message_count": 0,
-        "user_id": current_user["user_id"],
+        "user_id": current_user["userId"],
         "user_email": current_user["email"],
         "session_id": session.session_id,
         "chief_complaint": None,
@@ -186,7 +188,7 @@ async def send_message(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
 
-    if session.user_id != current_user["user_id"]:
+    if session.user_id != current_user["userId"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this session",
@@ -211,7 +213,7 @@ async def send_message(
     # Load agent state from session to preserve progress
     agent_state = session.agent_state
 
-    # FIX: Apply conversation summary context window to limit LLM token pressure.
+    # Apply conversation summary context window to limit LLM token pressure.
     # When the session has a stored summary (set by summarization_node) and the
     # raw message history is long, trim to last 10 messages and prepend the
     # clinical summary as a SystemMessage instead of sending the full history.
@@ -231,7 +233,7 @@ async def send_message(
         "messages": messages,
         "conversation_summary": getattr(
             agent_state, "conversation_summary", None
-        ),  # FIX: persist summary across turns
+        ),  # persist summary across turns
         "message_count": len(messages),
         "user_id": session.user_id,
         "user_email": session.user_email,
@@ -253,7 +255,7 @@ async def send_message(
         "differential_diagnosis": [],
         "recommendations": [],
         "urgency_score": None,
-        # NEW: Question context tracking (prevents repeated questions)
+        # Question context tracking (prevents repeated questions)
         "last_question_type": agent_state.last_question_type,
         "collected_fields": agent_state.collected_fields,
         # Multi-agent state (loaded from session)
@@ -316,7 +318,7 @@ async def send_message(
             current_node = None
             node_buffer = ""
             initial_message_count = len(state.get("messages", []))
-            # FIX: Track new AI messages independently — plain dict.update() on final_state
+            # Track new AI messages independently — plain dict.update() on final_state
             # overwrites the 'messages' key on each on_chain_end, losing earlier messages.
             accumulated_ai_messages: list = []
 
@@ -382,11 +384,11 @@ async def send_message(
                                             logger.debug(
                                                 f"Filtering JSON output from node: {current_node}"
                                             )
-                                        except:
+                                        except (json.JSONDecodeError, ValueError):
                                             # Not valid JSON yet - wait for more tokens
                                             # After accumulating significant content, decide
                                             if len(stripped) > 500:
-                                                # FIX: Use bracket counting to detect ongoing JSON
+                                                # Use bracket counting to detect ongoing JSON
                                                 # accumulation instead of blindly unfiltering at
                                                 # 100 chars (was streaming partial JSON to frontend).
                                                 open_count = stripped.count(
@@ -416,7 +418,7 @@ async def send_message(
                     outputs = event.get("data", {}).get("output")
 
                     # Capture final state, merging non-messages fields properly.
-                    # FIX: plain dict.update() would overwrite the 'messages' key on every
+                    # plain dict.update() would overwrite the 'messages' key on every
                     # node chain_end, destroying messages from earlier nodes.  Track new
                     # AI messages in accumulated_ai_messages; merge all other fields normally.
                     if outputs and isinstance(outputs, dict):
@@ -602,7 +604,7 @@ async def send_message(
                             "provider_query"
                         )
 
-                    # NEW: Update question context tracking
+                    # Update question context tracking
                     if final_state.get("last_question_type") is not None:
                         session.agent_state.last_question_type = final_state.get(
                             "last_question_type"
@@ -612,7 +614,7 @@ async def send_message(
                             "collected_fields", []
                         )
 
-                    # FIX: Persist conversation summary so context window is applied next turn
+                    # Persist conversation summary so context window is applied next turn
                     if final_state.get("conversation_summary") is not None:
                         session.agent_state.conversation_summary = final_state.get(
                             "conversation_summary"
@@ -686,7 +688,7 @@ async def get_session_details(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
 
-    if session.user_id != current_user["user_id"]:
+    if session.user_id != current_user["userId"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this session",
@@ -730,6 +732,87 @@ async def get_session_details(
     )
 
 
+@router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: str, current_user: Dict[str, str] = Depends(get_current_user)
+):
+    """
+    Permanently delete a Vaidya session and all its messages.
+
+    Only the owner of the session can delete it.
+    Returns 204 No Content on success.
+    """
+    session_service = get_session_service()
+
+    session = await session_service.get_session(session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+
+    if session.user_id != current_user["userId"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this session",
+        )
+
+    deleted = await session_service.delete_session(session_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete session",
+        )
+
+    logger.info(f"Session {session_id} deleted by user {current_user['userId']}")
+    # 204 — no response body
+
+
+@router.get("/sessions", response_model=UserSessionsResponse)
+async def get_user_sessions(
+    limit: int = 20,
+    offset: int = 0,
+    current_user: Dict[str, str] = Depends(get_current_user),
+):
+    """
+    Get list of all chat sessions for the current user.
+
+    Returns paginated session summaries including a preview of the first user message.
+    Ordered by most recent first.
+    """
+    session_service = get_session_service()
+
+    sessions = await session_service.get_user_sessions(
+        user_id=current_user["userId"], limit=limit, offset=offset
+    )
+
+    summaries = []
+    for s in sessions:
+        # Extract first user message as preview
+        preview = None
+        for msg in s.messages:
+            if msg.role == "user":
+                preview = msg.content[:80] + ("..." if len(msg.content) > 80 else "")
+                break
+
+        summaries.append(
+            SessionSummary(
+                session_id=s.session_id,
+                created_at=s.created_at,
+                updated_at=s.updated_at,
+                status=s.status,
+                message_count=s.message_count,
+                preview=preview,
+            )
+        )
+
+    return UserSessionsResponse(
+        total=len(summaries),
+        limit=limit,
+        offset=offset,
+        sessions=summaries,
+    )
+
+
 @router.get("/history", response_model=AssessmentHistoryResponse)
 async def get_assessment_history(
     limit: int = 10,
@@ -744,7 +827,7 @@ async def get_assessment_history(
     assessment_service = get_assessment_service()
 
     assessments, total = await assessment_service.get_user_assessments(
-        user_id=current_user["user_id"], limit=limit, offset=offset
+        user_id=current_user["userId"], limit=limit, offset=offset
     )
 
     # Convert to summary format

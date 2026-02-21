@@ -46,7 +46,7 @@ class AgentStateData(BaseModel):
     questions_asked: int = 0
     golden_4_complete: bool = False
 
-    # NEW: Question context tracking (prevents repeated questions)
+    # Question context tracking (prevents repeated questions)
     last_question_type: Optional[str] = None  # ASK_CHIEF_COMPLAINT, ASK_LOCATION, etc.
     collected_fields: List[str] = Field(
         default_factory=list

@@ -49,7 +49,7 @@ class TriageAssessment(BaseModel):
     # Metadata
     conversation_length: int
     processing_time_seconds: float
-    model_used: str = "gpt-4o-mini"
+    model_used: str = "multi-model"
 
     class Config:
         json_schema_extra = {

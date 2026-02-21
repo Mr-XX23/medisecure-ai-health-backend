@@ -11,7 +11,7 @@ class SymptomCheckState(TypedDict):
     # Conversation
     messages: Annotated[Sequence[BaseMessage], add]
     conversation_summary: Optional[str]  # Clinical summary for long conversations
-    message_count: int  # Track message count for summarization trigger
+    message_count: int
 
     # User context
     user_id: str
@@ -33,7 +33,7 @@ class SymptomCheckState(TypedDict):
     golden_4_complete: bool
     red_flags_detected: List[str]
 
-    # NEW: Question context tracking (prevents ambiguous numeric answers)
+    # Question context tracking (prevents ambiguous numeric answers)
     last_question_type: Optional[
         str
     ]  # ASK_CHIEF_COMPLAINT, ASK_LOCATION, ASK_DURATION, ASK_SEVERITY, etc.

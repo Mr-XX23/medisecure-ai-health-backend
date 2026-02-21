@@ -297,49 +297,6 @@ Severity: {current_symptoms.get('severity', 'Not specified')}/10
         return str(content)
 
 
-def identify_relevant_history_for_differential(
-    chief_complaint: str, conditions: List[Dict], medications: List[Dict]
-) -> Dict[str, List[str]]:
-    """
-    Identify which historical factors are most relevant for differential diagnosis.
-
-    Returns:
-        Dictionary with 'risk_amplifiers' and 'protective_factors'
-    """
-    risk_amplifiers = []
-    protective_factors = []
-
-    complaint_lower = chief_complaint.lower() if chief_complaint else ""
-    condition_names = [c["name"].lower() for c in conditions]
-    med_names = [m["generic_name"].lower() for m in medications]
-
-    # Chest pain analysis
-    if "chest" in complaint_lower or "cardiac" in complaint_lower:
-        if any("hypertension" in name for name in condition_names):
-            risk_amplifiers.append("History of hypertension increases cardiac risk")
-        if any("diabetes" in name for name in condition_names):
-            risk_amplifiers.append("Diabetes is a major cardiac risk factor")
-        if any("statin" in name for name in med_names):
-            protective_factors.append("On statin therapy for cholesterol management")
-        if any("aspirin" in name for name in med_names):
-            protective_factors.append("On aspirin for cardiovascular protection")
-
-    # Respiratory symptoms
-    if any(kw in complaint_lower for kw in ["breath", "wheez", "cough", "respiratory"]):
-        if any("asthma" in name or "copd" in name for name in condition_names):
-            risk_amplifiers.append("History of chronic lung disease")
-
-    # Infection risk
-    if any(kw in complaint_lower for kw in ["fever", "infection", "pain"]):
-        if any("diabetes" in name for name in condition_names):
-            risk_amplifiers.append("Diabetes increases infection risk")
-
-    return {
-        "risk_amplifiers": risk_amplifiers,
-        "protective_factors": protective_factors,
-    }
-
-
 def format_history_for_triage(history_data: Dict) -> str:
     """
     Format history data for inclusion in triage decision.

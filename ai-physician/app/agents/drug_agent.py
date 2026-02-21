@@ -144,24 +144,6 @@ async def _generate_interaction_explanation(
     return str(response.content) if response.content else ""
 
 
-def extract_medications_from_text(text: str) -> List[str]:
-    """
-    Extract medication names from free text using simple pattern matching.
-
-    This is a basic implementation. In production, could use NER (Named Entity Recognition)
-    or a medical NLP model.
-
-    Args:
-        text: User input text
-
-    Returns:
-        List of potential medication names
-    """
-    # TODO: Implement better NER for medication extraction
-    # For now, return empty list - medications will come from history
-    return []
-
-
 def should_check_interactions(
     medications: List[str],
     user_input: str = "",
@@ -196,24 +178,3 @@ def should_check_interactions(
 
     # Always check if user asks, or if we have multiple medications
     return asks_about_interactions or len(medications) >= 2
-
-
-def prioritize_interactions(interactions: List[Dict]) -> List[Dict]:
-    """
-    Prioritize interactions by severity and clinical significance.
-
-    Args:
-        interactions: List of all detected interactions
-
-    Returns:
-        Sorted list with most important interactions first
-    """
-    # Severity order
-    severity_priority = {"MAJOR": 0, "MODERATE": 1, "MINOR": 2}
-
-    # Sort by severity
-    sorted_interactions = sorted(
-        interactions, key=lambda x: severity_priority.get(x["severity"], 3)
-    )
-
-    return sorted_interactions

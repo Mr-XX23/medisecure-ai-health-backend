@@ -138,6 +138,25 @@ class SessionService:
 
         return sessions
 
+    async def delete_session(self, session_id: str) -> bool:
+        """
+        Permanently delete a session and all its messages.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if deleted, False if not found
+        """
+        collection = await get_sessions_collection()
+        result = await collection.delete_one({"session_id": session_id})
+
+        if result.deleted_count > 0:
+            logger.info(f"Deleted session {session_id}")
+            return True
+        logger.warning(f"Session {session_id} not found for deletion")
+        return False
+
     async def complete_session(self, session_id: str) -> bool:
         """
         Mark a session as completed.

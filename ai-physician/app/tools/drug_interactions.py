@@ -214,36 +214,6 @@ def check_drug_interactions(medications: List[str]) -> List[Dict]:
     return interactions
 
 
-async def check_drug_interactions_via_api(drugbank_ids: List[str]) -> List[Dict]:
-    """
-    Check drug interactions via external API (DrugBank or similar).
-
-    This is a placeholder for future API integration.
-    Currently redirects to mock data function.
-
-    Args:
-        drugbank_ids: List of DrugBank IDs or drug names
-
-    Returns:
-        List of interaction dictionaries
-    """
-    # TODO: Implement DrugBank API integration
-    # import httpx
-    # from app.config.settings import settings
-    #
-    # ids = ",".join(drugbank_ids)
-    # url = f"https://api.drugbank.com/v1/ddi?drugbank_id={ids}"
-    # headers = {"Authorization": f"Bearer {settings.DRUGBANK_API_KEY}"}
-    #
-    # async with httpx.AsyncClient() as client:
-    #     resp = await client.get(url, headers=headers)
-    #     resp.raise_for_status()
-    #     return resp.json()
-
-    # For now, use mock data
-    return check_drug_interactions(drugbank_ids)
-
-
 def format_interaction_for_display(interactions: List[Dict]) -> str:
     """
     Format drug interactions for user-friendly display.

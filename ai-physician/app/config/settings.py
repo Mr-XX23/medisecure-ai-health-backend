@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Auth Service Integration
     auth_service_url: str = "http://localhost:8082"
     user_service_url: str = "http://localhost:8081"
+    auth_verify_token_url: str = "http://localhost:8080/api/v1/auth/verify-token"
 
     # FHIR Server Configuration
     fhir_enabled: bool = False

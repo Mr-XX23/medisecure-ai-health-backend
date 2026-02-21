@@ -4,7 +4,6 @@ from app.agents.state import SymptomCheckState
 from app.agents.prompts import (
     GREETING_PROMPT,
     ANALYZE_INPUT_PROMPT,
-    GATHER_INFO_PROMPT,
     EMERGENCY_PROMPT,
     ASSESSMENT_PROMPT,
     TRIAGE_PROMPT,
@@ -78,11 +77,9 @@ async def greeting_node(state: SymptomCheckState) -> dict:
     """Greet the user and explain the process."""
     logger.info(f"Greeting node for session: {state['session_id']}")
 
-    # Check if greeting already sent (skip if messages already exist from assistant)
     existing_messages = state.get("messages", [])
     for msg in existing_messages:
         if isinstance(msg, AIMessage):
-            # Greeting already sent, skip
             logger.info("Greeting already sent, skipping")
             return {
                 "current_stage": "gathering",
@@ -92,14 +89,12 @@ async def greeting_node(state: SymptomCheckState) -> dict:
     # Phi-4-mini-instruct (3.8B) - Golden 4 Interview: ultra-fast conversational greeting
     llm = get_interview_model()
 
-    # Create system message with full context
     system_msg = SystemMessage(
         content=SYMPTOM_ANALYST_SYSTEM_PROMPT.format(
             stage="greeting", golden_4_complete=False
         )
     )
 
-    # Generate greeting
     response = await llm.ainvoke([system_msg, HumanMessage(content=GREETING_PROMPT)])
 
     return {
@@ -113,7 +108,6 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
     """Parse user message based on question context (context-aware interpretation)."""
     logger.info(f"Analyzing input for session: {state['session_id']}")
 
-    # Get latest user message
     latest_message = None
     for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
@@ -130,8 +124,6 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
         f"Analyzing with context: last_question={last_question}, collected={collected}"
     )
 
-    # If answering a specific question, interpret based on that context
-    # BUT only if the message looks like a direct answer, not an off-topic request.
     if last_question and _is_off_topic_answer(latest_message):
         logger.info(
             f"Message looks off-topic for {last_question}, falling through to general extraction "
@@ -141,9 +133,7 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
         last_question = None
 
     if last_question == "ASK_SEVERITY":
-        # Extract number from message (looking for 1-10 scale)
         try:
-            # Try direct conversion first
             severity = int(latest_message.strip())
             if 1 <= severity <= 10:
                 logger.info(f"Extracted severity: {severity}")
@@ -154,9 +144,6 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
                     "should_continue": True,
                 }
         except ValueError:
-            # Try to find a number in the message
-            import re
-
             numbers = re.findall(r"\b([1-9]|10)\b", latest_message)
             if numbers:
                 severity = int(numbers[0])
@@ -205,7 +192,7 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
         }
 
     # Otherwise, do general LLM-based extraction (for unsolicited info)
-    logger.info("No specific question context, doing general extraction")
+    # General LLM-based extraction (for unsolicited / multi-field input)
     # Phi-4-mini-instruct (3.8B) - Golden 4 Interview: fast input parsing
     llm = get_interview_model()
     prompt = ANALYZE_INPUT_PROMPT.format(message=latest_message)
@@ -219,11 +206,9 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
         )
         extracted = json.loads(_strip_md_fences(content))
 
-        # Build updates only for newly extracted non-None values
         updates = {}
         new_collected = list(collected)
 
-        # Only update/add fields that are newly extracted and not already collected
         if extracted.get("chief_complaint") and "chief_complaint" not in collected:
             updates["chief_complaint"] = extracted.get("chief_complaint")
             new_collected.append("chief_complaint")
@@ -256,7 +241,7 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
         elif extracted.get("triggers"):
             updates["triggers"] = extracted.get("triggers") or state.get("triggers")
 
-        # FIX: Extract relievers (what makes symptoms better)
+        # Extract relievers (what makes symptoms better)
         if extracted.get("relievers") and "relievers" not in collected:
             updates["relievers"] = extracted.get("relievers")
             new_collected.append("relievers")
@@ -286,7 +271,6 @@ async def red_flag_check_node(state: SymptomCheckState) -> dict:
     """Check for emergency red flags in symptoms."""
     logger.info(f"Red flag check for session: {state['session_id']}")
 
-    # Get all user messages
     user_messages = [
         msg.content if isinstance(msg.content, str) else str(msg.content)
         for msg in state["messages"]
@@ -294,7 +278,6 @@ async def red_flag_check_node(state: SymptomCheckState) -> dict:
     ]
     combined_text = " ".join(user_messages)
 
-    # Detect red flags
     has_red_flags, detected_categories = detect_red_flags(combined_text)
 
     if has_red_flags:
@@ -315,7 +298,6 @@ async def emergency_node(state: SymptomCheckState) -> dict:
     # Llama-3.3-70B - Triage: safety-critical emergency response accuracy
     llm = get_triage_model()
 
-    # Get descriptions of detected red flags
     red_flag_descriptions = [
         get_red_flag_description(cat) for cat in state["red_flags_detected"]
     ]
@@ -328,7 +310,7 @@ async def emergency_node(state: SymptomCheckState) -> dict:
         "classification": "ER_NOW",
         "urgency_score": 10,
         "current_stage": "complete",
-        "should_continue": False,  # End workflow
+        "should_continue": False,
     }
 
 
@@ -336,13 +318,8 @@ async def gather_info_node(state: SymptomCheckState) -> dict:
     """Determine if Golden 4 is complete or ask follow-up questions with context tracking."""
     logger.info(f"Gathering info for session: {state['session_id']}")
 
-    # Get collected fields list
     collected = state.get("collected_fields", [])
-
-    # Required Golden 4 fields
     required = ["chief_complaint", "location", "duration", "severity"]
-
-    # Check if all Golden 4 fields are collected
     all_collected = all(field in collected for field in required)
     all_have_values = (
         state.get("chief_complaint") is not None
@@ -361,8 +338,7 @@ async def gather_info_node(state: SymptomCheckState) -> dict:
             "should_continue": True,
         }
 
-    # Determine what to ask next based on what's missing
-    # Phi-4-mini-instruct (3.8B) - Golden 4 Interview: back-and-forth dialogue
+    # Determine what to ask next based on what's missing — Phi-4-mini-instruct (3.8B)
     llm = get_interview_model()
     question_type = None
     question_prompt = None
@@ -392,26 +368,6 @@ async def gather_info_node(state: SymptomCheckState) -> dict:
         question_type = "ASK_TRIGGERS"
         question_prompt = "What makes your symptoms worse?"
 
-    else:
-        # Fallback - use old logic
-        location_status = "COLLECTED" if state.get("location") else "MISSING"
-        duration_status = "COLLECTED" if state.get("duration") else "MISSING"
-        severity_status = "COLLECTED" if state.get("severity") else "MISSING"
-        triggers_status = "COLLECTED" if state.get("triggers") else "MISSING"
-
-        question_prompt = GATHER_INFO_PROMPT.format(
-            chief_complaint=state.get("chief_complaint", "not specified"),
-            location=state.get("location", "not specified"),
-            duration=state.get("duration", "not specified"),
-            severity=state.get("severity", "not specified"),
-            triggers=state.get("triggers", "not specified"),
-            location_status=location_status,
-            duration_status=duration_status,
-            severity_status=severity_status,
-            triggers_status=triggers_status,
-        )
-
-    # Generate question with LLM (for natural phrasing)
     # IMPORTANT: System message is mandatory — without it the LLM interprets the
     # question_prompt as the patient asking IT about its own sensations.
     gather_system = SystemMessage(
@@ -992,7 +948,7 @@ async def final_responder_node(state: SymptomCheckState) -> dict:
             chronic_care_plans=chronic_info,
             interaction_results=interaction_info,
             nearby_providers=provider_info,
-            # FIX: Include conversation summary so final responder has full context
+            # Include conversation summary so final responder has full context
             conversation_summary=state.get("conversation_summary")
             or "N/A (conversation is current)",
         )
@@ -1122,7 +1078,7 @@ def _format_chronic_info(state: SymptomCheckState) -> str:
 
         formatted.append(f"• {condition} (Risk: {risk})")
         if targets:
-            # FIX: targets is a list of strings (e.g. ["BP <130/80"]), not a dict
+            # targets is a list of strings (e.g. ["BP <130/80"]), not a dict
             if isinstance(targets, list):
                 formatted.append(f"  Targets: {', '.join(str(t) for t in targets)}")
             elif isinstance(targets, dict):
@@ -1314,7 +1270,7 @@ async def summarization_node(state: SymptomCheckState) -> dict:
 
         logger.info(f"Generated summary ({len(summary)} chars)")
 
-        # FIX: Do NOT return a trimmed message list — the `messages` field uses the
+        # Do NOT return a trimmed message list — the `messages` field uses the
         # LangGraph `add` (append) reducer, so returning a list here would DUPLICATE
         # all those messages rather than replacing them.
         # Instead: store the summary in `conversation_summary` and let vaidya.py

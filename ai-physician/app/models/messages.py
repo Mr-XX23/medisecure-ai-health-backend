@@ -13,12 +13,6 @@ class MessageRequest(BaseModel):
     message: str = Field(..., max_length=2000, description="User message")
 
 
-class StartSessionRequest(BaseModel):
-    """Request to start a new session (currently no body needed)."""
-
-    pass
-
-
 class StartSessionResponse(BaseModel):
     """Response when starting a new session."""
 
@@ -55,19 +49,6 @@ class TriageResult(BaseModel):
     recommendations: List[str] = Field(default_factory=list)
 
 
-class SessionResponse(BaseModel):
-    """Full session details response."""
-
-    session_id: str
-    status: SessionStatus
-    created_at: datetime
-    updated_at: datetime
-    message_count: int
-    messages: List[MessageModel]
-    symptoms_collected: SymptomsCollected
-    triage_result: Optional[TriageResult] = None
-
-
 class AssessmentSummary(BaseModel):
     """Summary of a completed assessment."""
 
@@ -88,14 +69,6 @@ class AssessmentHistoryResponse(BaseModel):
     assessments: List[AssessmentSummary]
 
 
-class MessageResponse(BaseModel):
-    """Response containing the agent's messageand session status."""
-
-    session_id: str
-    message: str
-    status: str
-
-
 class SessionDetailsResponse(BaseModel):
     """Full session details response."""
 
@@ -107,3 +80,23 @@ class SessionDetailsResponse(BaseModel):
     messages: List[MessageModel]
     symptoms_collected: SymptomsCollected
     triage_result: Optional[TriageResult] = None
+
+
+class SessionSummary(BaseModel):
+    """Lightweight summary of a chat session for the history list."""
+
+    session_id: str
+    created_at: datetime
+    updated_at: datetime
+    status: SessionStatus
+    message_count: int
+    preview: Optional[str] = None  # First user message truncated to 80 chars
+
+
+class UserSessionsResponse(BaseModel):
+    """Response containing paginated list of user sessions."""
+
+    total: int
+    limit: int
+    offset: int
+    sessions: List[SessionSummary]

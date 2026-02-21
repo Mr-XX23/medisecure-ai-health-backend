@@ -10,7 +10,7 @@ In production, this would connect to:
 - Or custom EHR integration
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict, Optional
 import logging
 
@@ -257,7 +257,6 @@ def get_patient_conditions(
         conditions = [c for c in conditions if c.get("status") == "active"]
 
     # Filter by date if needed (simplified - in real implementation would check onset_date)
-    cutoff_date = datetime.now() - timedelta(days=last_n_years * 365)
 
     return conditions
 
@@ -296,7 +295,6 @@ def get_patient_observations(
         observations = [obs for obs in observations if obs["code"] in observation_codes]
 
     # Filter by date
-    cutoff_date = datetime.now() - timedelta(days=last_n_years * 365)
     # In production, would parse obs["date"] and filter
 
     # Sort by date (most recent first)
@@ -362,16 +360,3 @@ def get_complete_patient_history(patient_id: str) -> Dict:
         "medications": get_patient_medications(patient_id),
         "allergies": get_patient_allergies(patient_id),
     }
-
-
-# Helper function for filtering observations by type
-def get_cardiovascular_labs(patient_id: str) -> List[Dict]:
-    """Get cardiovascular-related labs (BP, cholesterol, etc.)"""
-    codes = ["8480-6", "8462-4", "2089-1", "2093-3"]  # BP and cholesterol codes
-    return get_patient_observations(patient_id, observation_codes=codes)
-
-
-def get_diabetes_labs(patient_id: str) -> List[Dict]:
-    """Get diabetes-related labs (HbA1c, glucose, etc.)"""
-    codes = ["4548-4", "2339-0"]  # HbA1c and glucose codes
-    return get_patient_observations(patient_id, observation_codes=codes)

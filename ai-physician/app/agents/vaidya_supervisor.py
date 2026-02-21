@@ -56,20 +56,17 @@ async def vaidya_supervisor_node(state: SymptomCheckState) -> Dict[str, Any]:
     logger.info("🎯 Vaidya Supervisor: Analyzing intent and routing")
 
     try:
-        # Get the latest user message
         latest_user_message = _get_latest_user_message(state)
 
         if not latest_user_message:
             logger.warning("No user message found, skipping supervision")
             return {
-                "next_agent": "Final_Responder",
+                "next_agent": None,
                 "should_continue": False,
             }
 
-        # Build context for decision making
         context = _build_context(state)
 
-        # Call LLM to analyze intent and decide next agent
         decision = await _analyze_intent_and_route(latest_user_message, context, state)
 
         logger.info(
@@ -78,7 +75,6 @@ async def vaidya_supervisor_node(state: SymptomCheckState) -> Dict[str, Any]:
             f"reason={decision['reason']}"
         )
 
-        # Prepare status event if specified
         status_events = []
         if decision.get("emit_status") and decision["emit_status"] != "STATUS:NONE":
             status_events.append(decision["emit_status"])
@@ -127,7 +123,6 @@ async def _analyze_intent_and_route(
     Returns:
         Dictionary with intent, next_agent, emit_status, reason
     """
-    # First check for inappropriate content
     if _is_inappropriate_content(user_message):
         logger.warning(f"Inappropriate content detected: {user_message}")
         return {
@@ -138,7 +133,6 @@ async def _analyze_intent_and_route(
             "needs_followup": True,
         }
 
-    # Handle simple greetings directly
     greeting_response = _handle_greeting(user_message, state)
     if greeting_response:
         return greeting_response
@@ -146,7 +140,6 @@ async def _analyze_intent_and_route(
     # Phi-4 (14B) — fast structured JSON routing for supervisor decisions
     llm = get_supervisor_model()
 
-    # Format the prompt with context
     prompt = VAIDYA_INTENT_ANALYSIS_PROMPT.format(
         user_message=user_message,
         message_count=context["message_count"],
@@ -161,7 +154,6 @@ async def _analyze_intent_and_route(
         or "No summary yet (conversation still short)",
     )
 
-    # Create system message with full context awareness
     system_msg = SystemMessage(
         content=VAIDYA_SYSTEM_PROMPT.format(
             golden_4_complete=context["golden_4_complete"],
@@ -173,10 +165,8 @@ async def _analyze_intent_and_route(
         )
     )
 
-    # Get decision from LLM
     response = await llm.ainvoke([system_msg, HumanMessage(content=prompt)])
 
-    # Parse JSON response
     try:
         content = (
             response.content
@@ -185,13 +175,11 @@ async def _analyze_intent_and_route(
         )
         decision = json.loads(_strip_md_fences(content))
 
-        # Validate required fields
         required_fields = ["intent", "next_agent", "reason"]
         for field in required_fields:
             if field not in decision:
                 raise ValueError(f"Missing required field: {field}")
 
-        # Apply safety overrides
         decision = _apply_safety_overrides(decision, state)
 
         return decision
@@ -264,7 +252,7 @@ def _fallback_routing(
 
     msg_lower = user_message.lower()
 
-    # FIX: Check for mental health / suicidal ideation FIRST — these are emergencies
+    # Check for mental health / suicidal ideation FIRST — these are emergencies
     # (removed from inappropriate filter so they reach here)
     crisis_keywords = [
         "kill myself",
@@ -436,7 +424,7 @@ def _identify_missing_info(state: SymptomCheckState) -> Optional[Dict[str, str]]
     """
     Identify what critical information is missing.
 
-    FIX: Uses `intent` field (preserved by supervisor) instead of `next_agent`
+    Uses `intent` field (preserved by supervisor) instead of `next_agent`
     (which is overwritten to 'Vaidya_Questioner' by safety overrides before
     this questioner node runs).
 
@@ -449,7 +437,7 @@ def _identify_missing_info(state: SymptomCheckState) -> Optional[Dict[str, str]]
     # Use intent to determine what the supervisor originally wanted to do
     # (next_agent may have been redirected to 'Vaidya_Questioner' by safety overrides)
     intent = state.get("intent")
-    next_agent = state.get("next_agent")  # May be 'Vaidya_Questioner' after override
+    next_agent = state.get("next_agent")
 
     # Age needed for preventive care
     if state.get("active_workflows") and "Preventive_Chronic_Agent" in state.get(
@@ -461,7 +449,7 @@ def _identify_missing_info(state: SymptomCheckState) -> Optional[Dict[str, str]]
                 "description": "Patient age for preventive care recommendations",
             }
 
-    # FIX: Check intent for MEDICATION_SAFETY
+    # Check intent for MEDICATION_SAFETY
     wants_drug_check = (
         intent == "MEDICATION_SAFETY" or next_agent == "Drug_Interaction_Agent"
     )
@@ -495,7 +483,6 @@ async def _generate_clarifying_question(
     # Phi-4-mini-instruct (3.8B) — ultra-fast conversational interview Q&A
     llm = get_interview_model()
 
-    # Build context summary
     messages = state.get("messages", [])
     recent_messages = messages[-4:] if len(messages) > 4 else messages
     context_summary = "\n".join(
@@ -535,7 +522,6 @@ async def _generate_conversational_response(state: SymptomCheckState) -> str:
     # Phi-4-mini-instruct (3.8B) — ultra-fast back-and-forth dialogue
     llm = get_interview_model()
 
-    # Get recent conversation context
     messages = state.get("messages", [])
     recent_messages = messages[-4:] if len(messages) > 4 else messages
     context_summary = "\n".join(
@@ -545,14 +531,12 @@ async def _generate_conversational_response(state: SymptomCheckState) -> str:
         ]
     )
 
-    # Get current user message
     user_message = "No message"
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
             user_message = msg.content
             break
 
-    # Use LLM to generate appropriate response
     from app.agents.prompts import VAIDYA_CONVERSATIONAL_PROMPT
 
     system_msg = SystemMessage(
@@ -622,7 +606,6 @@ def _build_context(state: SymptomCheckState) -> Dict[str, Any]:
         "interaction_check_done": state.get("interaction_check_done", False),
         "provider_search_done": state.get("provider_search_done", False),
         "conversation_summary": state.get("conversation_summary"),
-        # FIX: Include last_error so supervisor avoids re-routing to agents that already failed
         "last_error": state.get("last_error"),
         "tool_failures": state.get("tool_failures", []),
     }
