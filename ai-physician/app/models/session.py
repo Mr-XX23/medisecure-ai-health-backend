@@ -22,7 +22,7 @@ class SymptomsData(BaseModel):
     chief_complaint: Optional[str] = None
     location: Optional[str] = None
     duration: Optional[str] = None
-    severity: Optional[int] = Field(None, ge=1, le=10)
+    severity: Optional[int] = Field(default=None, ge=1, le=10)
     triggers: Optional[str] = None
     relievers: Optional[str] = None
     associated_symptoms: List[str] = Field(default_factory=list)
@@ -32,11 +32,11 @@ class TriageData(BaseModel):
     """Triage assessment data."""
 
     classification: Optional[TriageClassification] = None
-    confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     red_flags: List[str] = Field(default_factory=list)
     differential_diagnosis: List[str] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
-    urgency_score: Optional[int] = Field(None, ge=1, le=10)
+    urgency_score: Optional[int] = Field(default=None, ge=1, le=10)
 
 
 class AgentStateData(BaseModel):
@@ -77,6 +77,13 @@ class AgentStateData(BaseModel):
     # Context management
     conversation_summary: Optional[str] = None  # Clinical summary for long sessions
 
+    # Emergency Response Mode (persisted so sticky mode survives reconnects)
+    emergency_mode: bool = False
+    emergency_type: Optional[str] = None
+    er_search_triggered: bool = False
+    er_hospitals: List[dict] = Field(default_factory=list)
+    er_emergency_numbers: Optional[dict] = None
+
 
 class SymptomSession(BaseModel):
     """Symptom check session document."""
@@ -94,13 +101,13 @@ class SymptomSession(BaseModel):
     messages: List[Message] = Field(default_factory=list)
 
     # Clinical context
-    symptoms_collected: SymptomsData = Field(default_factory=SymptomsData)
+    symptoms_collected: SymptomsData = Field(default_factory=lambda: SymptomsData())
 
     # Triage outcome
     triage_result: Optional[TriageData] = None
 
     # Agent workflow state (preserves progress between messages)
-    agent_state: AgentStateData = Field(default_factory=AgentStateData)
+    agent_state: AgentStateData = Field(default_factory=lambda: AgentStateData())
 
     class Config:
         json_schema_extra = {

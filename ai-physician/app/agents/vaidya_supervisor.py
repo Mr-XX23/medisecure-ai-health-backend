@@ -4,6 +4,7 @@ Vaidya analyzes user messages, detects intent, and intelligently routes to speci
 while maintaining conversation context and handling errors gracefully.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -18,6 +19,7 @@ from app.agents.prompts import (
     VAIDYA_QUESTIONER_PROMPT,
 )
 from app.config.llm_config import get_supervisor_model, get_interview_model
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -207,9 +209,25 @@ def _apply_safety_overrides(
     """
     # Override 1: Emergency triage takes precedence
     triage = state.get("classification")
-    if triage == "ER_NOW" and decision["next_agent"] not in [
+    emergency_mode = state.get("emergency_mode", False)
+
+    # Sticky emergency mode: once ER_NOW is triggered, ALL follow-up messages
+    # go directly to Final_Responder for reassurance/first-aid only.
+    if emergency_mode and decision["next_agent"] not in ["Final_Responder"]:
+        logger.warning(
+            "Sticky emergency mode active — overriding routing to Final_Responder for follow-up"
+        )
+        decision["next_agent"] = "Final_Responder"
+        decision["reason"] = (
+            "Emergency mode is active — providing follow-up first-aid guidance"
+        )
+        decision["emit_status"] = "STATUS:GENERATING_RESPONSE"
+
+    # Standard ER_NOW safety override (first trigger, before emergency_mode flag is sticky)
+    elif triage == "ER_NOW" and decision["next_agent"] not in [
         "Final_Responder",
         "Provider_Locator_Agent",
+        "ER_Emergency_Agent",
     ]:
         logger.warning(
             "Overriding routing: ER triage detected, proceeding to final response"
@@ -252,6 +270,15 @@ def _fallback_routing(
 
     msg_lower = user_message.lower()
 
+    # FIRST: Sticky emergency mode — all follow-up messages go to Final_Responder
+    if context.get("emergency_mode") or state.get("emergency_mode"):
+        return {
+            "intent": "FOLLOWUP_QUESTION",
+            "next_agent": "Final_Responder",
+            "emit_status": "STATUS:GENERATING_RESPONSE",
+            "reason": "Emergency mode active \u2014 follow-up first-aid guidance",
+        }
+
     # Check for mental health / suicidal ideation FIRST — these are emergencies
     # (removed from inappropriate filter so they reach here)
     crisis_keywords = [
@@ -274,32 +301,42 @@ def _fallback_routing(
             "reason": "Potential mental health crisis detected — routing to emergency triage",
         }
 
-    # Check for provider search keywords
+    # Check for provider search keywords — require explicit find/locate intent
+    # Do NOT trigger on incidental words like "my doctor said" or "nearby park"
     provider_keywords = [
-        "doctor",
-        "hospital",
-        "clinic",
-        "cardiologist",
-        "find",
+        "find a doctor",
+        "find a hospital",
+        "find a clinic",
+        "find a cardiologist",
+        "nearest hospital",
+        "nearest er",
         "near me",
-        "nearby",
+        "nearby clinic",
+        "nearby hospital",
+        "locate a provider",
+        "where can i go",
+        "which hospital",
     ]
     if any(keyword in msg_lower for keyword in provider_keywords):
         return {
             "intent": "PROVIDER_SEARCH",
             "next_agent": "Provider_Locator_Agent",
             "emit_status": "STATUS:SEARCHING_PROVIDERS",
-            "reason": "Detected provider search keywords",
+            "reason": "Detected explicit provider search keywords",
         }
 
-    # Check for medication keywords
+    # Check for medication keywords — require explicit drug/interaction intent
+    # Do NOT trigger on incidental "taking" (e.g., "taking a walk")
     med_keywords = [
-        "medication",
-        "medicine",
-        "drug",
-        "interaction",
-        "taking",
-        "prescription",
+        "drug interaction",
+        "medication interaction",
+        "are my medications safe",
+        "my medications",
+        "my medicines",
+        "side effect",
+        "prescription interaction",
+        "safe to take together",
+        "can i take",
     ]
     if any(keyword in msg_lower for keyword in med_keywords):
         return {
@@ -373,7 +410,16 @@ async def vaidya_questioner_node(state: SymptomCheckState) -> Dict[str, Any]:
             # No specific missing info and no active symptom workflow
             # Generate conversational response using LLM
             logger.info("Generating conversational response via LLM")
-            response = await _generate_conversational_response(state)
+            try:
+                response = await asyncio.wait_for(
+                    _generate_conversational_response(state),
+                    timeout=settings.llm_invoke_timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"LLM response generation timed out after {settings.llm_invoke_timeout}s"
+                )
+                response = "I apologize, but I'm having trouble responding right now. Could you please rephrase your message?"
 
             return {
                 "messages": [AIMessage(content=response)],
@@ -409,10 +455,32 @@ async def vaidya_questioner_node(state: SymptomCheckState) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in Vaidya questioner: {e}", exc_info=True)
 
-        # Fallback: send generic question
-        fallback_msg = AIMessage(
-            content="To help you better, could you provide more details about your situation?"
-        )
+        # LLM fallback instead of static string
+        try:
+            llm = get_interview_model()
+            user_msg = _get_latest_user_message(state) or "your question"
+            fallback_response = await llm.ainvoke(
+                [
+                    HumanMessage(
+                        content=(
+                            f"You are Vaidya, an AI health assistant. "
+                            f'The patient said: "{user_msg}". '
+                            "Ask ONE short, empathetic follow-up question to understand their health concern better. "
+                            "Do not start with filler phrases. 1-2 sentences max."
+                        )
+                    )
+                ]
+            )
+            fallback_text = (
+                fallback_response.content
+                if isinstance(fallback_response.content, str)
+                else str(fallback_response.content)
+            )
+            fallback_msg = AIMessage(content=fallback_text)
+        except Exception:
+            fallback_msg = AIMessage(
+                content="Could you tell me more about what you're experiencing so I can help?"
+            )
 
         return {
             "messages": [fallback_msg],
@@ -483,19 +551,28 @@ async def _generate_clarifying_question(
     # Phi-4-mini-instruct (3.8B) — ultra-fast conversational interview Q&A
     llm = get_interview_model()
 
+    # Recent conversation excerpt for context
     messages = state.get("messages", [])
     recent_messages = messages[-4:] if len(messages) > 4 else messages
-    context_summary = "\n".join(
+    recent_exchanges = "\n".join(
         [
-            f"{'User' if isinstance(m, HumanMessage) else 'AI'}: {m.content[:100]}"
+            f"{'User' if isinstance(m, HumanMessage) else 'AI'}: {str(m.content)[:120]}"
             for m in recent_messages
         ]
     )
 
     prompt = VAIDYA_QUESTIONER_PROMPT.format(
+        chief_complaint=state.get("chief_complaint", "not yet identified"),
         topic=missing_info["topic"],
         missing_info=missing_info["description"],
-        context_summary=context_summary,
+        patient_age=str(state.get("age", "unknown")),
+        known_conditions=", ".join(state.get("chronic_conditions", []))
+        or "none reported",
+        current_medications=", ".join(state.get("current_medications", []))
+        or "none reported",
+        severity=str(state.get("severity", "not specified")),
+        triage_classification=state.get("classification", "not yet triaged"),
+        recent_exchanges=recent_exchanges if recent_exchanges else "[First message]",
     )
 
     response = await llm.ainvoke([HumanMessage(content=prompt)])
@@ -519,8 +596,12 @@ async def _generate_conversational_response(state: SymptomCheckState) -> str:
     Returns:
         Generated conversational response
     """
+    logger.info("🤖 Starting LLM call for conversational response")
     # Phi-4-mini-instruct (3.8B) — ultra-fast back-and-forth dialogue
     llm = get_interview_model()
+    logger.info(
+        f"✅ LLM model loaded: {llm.model_name if hasattr(llm, 'model_name') else 'unknown'}"
+    )
 
     messages = state.get("messages", [])
     recent_messages = messages[-4:] if len(messages) > 4 else messages
@@ -539,25 +620,22 @@ async def _generate_conversational_response(state: SymptomCheckState) -> str:
 
     from app.agents.prompts import VAIDYA_CONVERSATIONAL_PROMPT
 
-    system_msg = SystemMessage(
-        content=(
-            "You are Vaidya, an AI primary care physician assistant. "
-            "Your job is to help patients understand their symptoms, assess urgency, "
-            "review their medical history, check medication interactions, and find healthcare providers. "
-            "You speak warmly, professionally, and always stay focused on the patient's health needs. "
-            "Never say you cannot experience physical sensations — you are an AI that understands "
-            "and evaluates symptoms described by the patient. "
-            "If a patient describes or asks about any symptom, engage medically: ask follow-up "
-            "questions, assess severity, or explain relevant information clearly."
-        )
-    )
-
     prompt = VAIDYA_CONVERSATIONAL_PROMPT.format(
+        patient_age=str(state.get("age", "unknown")),
+        chief_complaint=state.get("chief_complaint", "not yet identified"),
+        triage_classification=state.get("classification", "not yet triaged"),
+        emergency_mode=state.get("emergency_mode", False),
+        known_conditions=", ".join(state.get("chronic_conditions", []))
+        or "none reported",
+        current_medications=", ".join(state.get("current_medications", []))
+        or "none reported",
         context_summary=context_summary if context_summary else "[First message]",
         user_message=user_message,
     )
 
-    response = await llm.ainvoke([system_msg, HumanMessage(content=prompt)])
+    logger.info("📤 Sending request to LLM...")
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    logger.info("✅ Received LLM response")
 
     response_text = (
         response.content if isinstance(response.content, str) else str(response.content)
@@ -608,6 +686,7 @@ def _build_context(state: SymptomCheckState) -> Dict[str, Any]:
         "conversation_summary": state.get("conversation_summary"),
         "last_error": state.get("last_error"),
         "tool_failures": state.get("tool_failures", []),
+        "emergency_mode": state.get("emergency_mode", False),
     }
 
 
@@ -676,6 +755,7 @@ def route_to_next_agent(state: SymptomCheckState) -> str:
         "Preventive_Chronic_Agent": "preventive_chronic",
         "Drug_Interaction_Agent": "drug_interaction",
         "Provider_Locator_Agent": "provider_locator",
+        "ER_Emergency_Agent": "er_emergency",
         "Vaidya_Questioner": "vaidya_questioner",
         "Final_Responder": "final_responder",
     }

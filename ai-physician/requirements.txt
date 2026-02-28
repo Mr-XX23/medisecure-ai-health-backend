@@ -1,14 +1,14 @@
 # Core Framework
-fastapi==0.129.0
+fastapi==0.133.0
 uvicorn[standard]==0.41.0
 pydantic==2.12.5
-pydantic-settings==2.1.0
+pydantic-settings==2.13.0
 
 # AI/LLM
-langgraph==1.0.8
-langgraph-prebuilt==1.0.7
-langchain-core==1.2.13
-langchain-openai==1.1.9
+langgraph==1.0.9
+langgraph-prebuilt==1.0.8
+langchain-core==1.2.16
+langchain-openai==1.1.10
 openai==2.21.0
 
 # Database

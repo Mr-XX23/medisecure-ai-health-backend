@@ -1,10 +1,11 @@
-"""Provider search tool using Google Places API.
+"""Provider search tool using Serper API.
 
-This tool queries the Google Places API to find nearby healthcare providers
-based on user location and optional specialty filter.
+This tool queries the Serper API (Google Search API alternative) to find 
+nearby healthcare providers based on user location and optional specialty filter.
 """
 
 import httpx
+import json
 from math import log, radians, cos, sin, asin, sqrt
 from typing import Optional, List, Dict
 from app.config.settings import settings
@@ -62,26 +63,26 @@ async def search_providers(
     radius_m: Optional[int] = None,
     max_results: Optional[int] = None,
 ) -> List[Dict]:
-    """Search for healthcare providers near a location.
+    """Search for healthcare providers near a location using Serper API.
 
     Args:
         lat: Latitude of search location
         lng: Longitude of search location
-        specialty: Optional specialty or type (e.g., "cardiologist", "dentist")
-        radius_m: Search radius in meters (default from settings)
+        specialty: Optional specialty or type (e.g., "cardiologist", "dentist", "hospital")
+        radius_m: Search radius in meters (default from settings) 
         max_results: Maximum number of results to return (default from settings)
 
     Returns:
         List of provider dictionaries with details
 
     Raises:
-        ValueError: If Google Maps API key is not configured
+        ValueError: If Serper API key is not configured
         httpx.HTTPError: If API request fails
     """
-    if not settings.google_maps_api_key:
+    if not settings.serper_api_key:
         raise ValueError(
-            "Google Maps API key not configured. "
-            "Please set GOOGLE_MAPS_API_KEY in your .env file."
+            "Serper API key not configured. "
+            "Please set SERPER_API_KEY in your .env file."
         )
 
     # Use defaults from settings if not provided
@@ -90,56 +91,75 @@ async def search_providers(
     if max_results is None:
         max_results = settings.provider_search_max_results
 
-    # Build API request
-    base_url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-    params = {
-        "location": f"{lat},{lng}",
-        "radius": radius_m,
-        "key": settings.google_maps_api_key,
-    }
-
-    # Choose type and keyword based on specialty
+    # Build search query
     if specialty and specialty.lower():
-        # If user specified a specialty, search for doctors with that keyword
-        params["type"] = "doctor"
-        params["keyword"] = specialty.lower()
+        # If user specified a specialty, include it in the search
+        search_query = f"{specialty} near me"
     else:
         # Default to searching for hospitals
-        params["type"] = "hospital"
+        search_query = "hospital near me"
+
+    # Calculate approximate zoom level from radius
+    # Serper uses zoom format like "11z" 
+    # Rough approximation: 5000m ≈ 13z, 10000m ≈ 12z, 20000m ≈ 11z
+    zoom = max(10, min(15, int(15 - (radius_m / 5000))))
+
+    # Build Serper API request
+    url = "https://google.serper.dev/maps"
+    headers = {
+        "X-API-KEY": settings.serper_api_key,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "q": search_query,
+        "ll": f"@{lat},{lng},{zoom}z",
+        "type": "maps",
+        "num": max_results
+    }
 
     # Make API request
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(base_url, params=params)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
 
-    # Check for API errors
-    if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-        error_msg = data.get("error_message", data.get("status"))
-        raise ValueError(f"Google Places API error: {error_msg}")
-
     # Process results
     providers = []
-    for place in data.get("results", []):
-        rating = place.get("rating", 0.0)
-        reviews = place.get("user_ratings_total", 0)
-
-        place_lat = place["geometry"]["location"]["lat"]
-        place_lng = place["geometry"]["location"]["lng"]
+    places = data.get("places", [])
+    
+    for place in places:
+        place_lat = place.get("latitude")
+        place_lng = place.get("longitude")
+        
+        # Skip places without coordinates
+        if place_lat is None or place_lng is None:
+            continue
+            
         distance_km = calculate_distance_km(lat, lng, place_lat, place_lng)
+        
+        # Filter by radius
+        if distance_km > (radius_m / 1000):
+            continue
+
+        rating = place.get("rating", 0.0)
+        reviews = place.get("ratingCount", 0)
 
         providers.append(
             {
-                "place_id": place["place_id"],
-                "name": place.get("name"),
-                "address": place.get("vicinity"),
+                "place_id": place.get("placeId", ""),
+                "name": place.get("title", "Unknown"),
+                "address": place.get("address", ""),
                 "lat": place_lat,
                 "lng": place_lng,
                 "rating": rating,
                 "reviews": reviews,
                 "score": calculate_provider_score(rating, reviews),
                 "types": place.get("types", []),
+                "type": place.get("type", "Healthcare Provider"),
                 "distance_km": distance_km,
+                "phone": place.get("phoneNumber", ""),
+                "website": place.get("website", ""),
+                "opening_hours": place.get("openingHours", {}),
             }
         )
 
@@ -156,7 +176,7 @@ def generate_maps_link(lat: float, lng: float, place_id: Optional[str] = None) -
     Args:
         lat: Latitude
         lng: Longitude
-        place_id: Optional Google Place ID for more accurate link
+        place_id: Optional Place ID for more accurate link
 
     Returns:
         Google Maps URL
@@ -195,18 +215,19 @@ def format_provider_message(
     lines = []
     for i, p in enumerate(providers, 1):
         # Extract primary type
-        provider_type = "Healthcare Provider"
-        types = p.get("types", [])
-        if "hospital" in types:
-            provider_type = "Hospital"
-        elif "doctor" in types:
-            provider_type = "Doctor"
-        elif "clinic" in types or "health" in types:
-            provider_type = "Clinic"
-        elif "dentist" in types:
-            provider_type = "Dentist"
-        elif "pharmacy" in types:
-            provider_type = "Pharmacy"
+        provider_type = p.get("type", "Healthcare Provider")
+        if not provider_type or provider_type == "Healthcare Provider":
+            types = p.get("types", [])
+            if "Hospital" in types or "hospital" in [t.lower() for t in types]:
+                provider_type = "Hospital"
+            elif "Doctor" in types or "doctor" in [t.lower() for t in types]:
+                provider_type = "Doctor"
+            elif "Clinic" in types or "clinic" in [t.lower() for t in types]:
+                provider_type = "Clinic"
+            elif "Dentist" in types or "dentist" in [t.lower() for t in types]:
+                provider_type = "Dentist"
+            elif "Pharmacy" in types or "pharmacy" in [t.lower() for t in types]:
+                provider_type = "Pharmacy"
 
         # Format rating
         rating_str = f"⭐{p['rating']:.1f}" if p["rating"] > 0 else "No rating"
@@ -220,8 +241,19 @@ def format_provider_message(
             f"{i}. **{p['name']}** ({provider_type})\n"
             f"   📍 {p['address']} — {p['distance_km']} km away\n"
             f"   {rating_str} {review_str}\n"
-            f"   [Open in Maps]({maps_link})\n"
         )
+        
+        # Add phone if available
+        if p.get("phone"):
+            line += f"   📞 {p['phone']}\n"
+        
+        # Add website if available
+        if p.get("website"):
+            line += f"   🌐 {p['website']}\n"
+            
+        # Add maps link
+        line += f"   [Open in Maps]({maps_link})\n"
+        
         lines.append(line)
 
     return header + "\n".join(lines)

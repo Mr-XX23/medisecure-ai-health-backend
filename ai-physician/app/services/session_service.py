@@ -186,7 +186,7 @@ class SessionService:
 
 
 # Global service instance
-_session_service: SessionService = None
+_session_service: Optional[SessionService] = None
 
 
 def get_session_service() -> SessionService:

@@ -46,6 +46,12 @@ def _status_event_to_message(status_event: str) -> str:
         "STATUS:PREVENTIVE_CARE": "Analyzing preventive care recommendations...",
         "STATUS:TRIAGE_ASSESSMENT": "Assessing urgency level...",
         "STATUS:GENERATING_RESPONSE": "Preparing your personalized response...",
+        # ER Emergency status events
+        "STATUS:EMERGENCY_DETECTED": "⚠️ Emergency detected — finding nearest hospitals...",
+        "STATUS:WAITING_LOCATION": "Requesting your location to find the nearest emergency room...",
+        "STATUS:ER_SEARCH": "Searching for emergency rooms near you...",
+        "STATUS:ER_FOUND": "Emergency rooms located — preparing response...",
+        "STATUS:ER_SEARCH_FAILED": "Hospital search unavailable — showing emergency numbers only...",
     }
     return status_map.get(status_event, "Processing your request...")
 
@@ -119,6 +125,13 @@ async def start_session(current_user: Dict[str, str] = Depends(get_current_user)
         "provider_query": None,
         "nearby_providers": [],
         "provider_search_done": False,
+        # Emergency Response Mode
+        "emergency_mode": False,
+        "emergency_type": None,
+        "er_search_triggered": False,
+        "er_hospitals": [],
+        "er_emergency_numbers": None,
+        "location_timeout": False,
         "intent": None,
         "next_agent": None,
         "active_workflows": [],
@@ -282,10 +295,19 @@ async def send_message(
         "interaction_results": [],
         "interaction_check_done": agent_state.interaction_check_done,
         # Provider locator state
-        "user_location": None,
+        "user_location": request.user_location,  # GPS coords from frontend (sent on every message)
         "provider_query": agent_state.provider_query,
         "nearby_providers": [],
         "provider_search_done": agent_state.provider_search_done,
+        # Emergency Response Mode (loaded from session for sticky emergency mode)
+        "emergency_mode": agent_state.emergency_mode,
+        "emergency_type": agent_state.emergency_type,
+        "er_search_triggered": agent_state.er_search_triggered,
+        "er_hospitals": (
+            list(agent_state.er_hospitals) if agent_state.er_hospitals else []
+        ),
+        "er_emergency_numbers": agent_state.er_emergency_numbers,
+        "location_timeout": False,  # Reset each turn; er_emergency_node sets it if needed
         # Control
         "pending_questions": [],
         "status_events": [],
@@ -328,6 +350,8 @@ async def send_message(
                 "vaidya",  # Vaidya supervisor routing decisions
                 "analyze_input",  # Symptom data extraction
                 "red_flag_check",  # Emergency flag detection
+                "emergency",  # Emergency flag setting (no LLM output)
+                "er_emergency",  # ER hospital search (no LLM output — only state + status events)
                 "assess",  # Internal assessment logic
                 "triage",  # Triage classification
                 "save_assessment",  # Database operations
@@ -438,14 +462,21 @@ async def send_message(
                                     final_state[k] = v
 
                         # **EMIT STATUS EVENTS** - Check for status events in the node output
-                        if outputs.get("status_events"):
+                        # Skip the outer LangGraph graph chain_end (name == "LangGraph") to
+                        # avoid re-emitting status events that were already sent by individual nodes.
+                        if outputs.get("status_events") and name != "LangGraph":
                             for status_event in outputs["status_events"]:
                                 # Convert status event to user-friendly message
                                 status_message = _status_event_to_message(status_event)
                                 logger.info(
                                     f"Emitting status event: {status_event} -> {status_message}"
                                 )
-                                yield f"data: {json.dumps({'type': 'status', 'content': status_message})}\n\n"
+                                # STATUS:EMERGENCY_DETECTED gets a special SSE type so the
+                                # frontend can show the red alert banner and auto-trigger geolocation
+                                if status_event == "STATUS:EMERGENCY_DETECTED":
+                                    yield f"data: {json.dumps({'type': 'emergency', 'content': status_message, 'event': status_event})}\n\n"
+                                else:
+                                    yield f"data: {json.dumps({'type': 'status', 'content': status_message})}\n\n"
                                 await asyncio.sleep(0.01)
 
                         # Log merged state after each node (for debugging)
@@ -604,6 +635,24 @@ async def send_message(
                             "provider_query"
                         )
 
+                    # Update emergency response mode (sticky — once True, never reset)
+                    if final_state.get("emergency_mode"):
+                        session.agent_state.emergency_mode = True
+                    if final_state.get("emergency_type") is not None:
+                        session.agent_state.emergency_type = final_state.get(
+                            "emergency_type"
+                        )
+                    if final_state.get("er_search_triggered"):
+                        session.agent_state.er_search_triggered = True
+                    if final_state.get("er_hospitals"):
+                        session.agent_state.er_hospitals = final_state.get(
+                            "er_hospitals", []
+                        )
+                    if final_state.get("er_emergency_numbers"):
+                        session.agent_state.er_emergency_numbers = final_state.get(
+                            "er_emergency_numbers"
+                        )
+
                     # Update question context tracking
                     if final_state.get("last_question_type") is not None:
                         session.agent_state.last_question_type = final_state.get(
@@ -653,8 +702,19 @@ async def send_message(
 
                     await session_service.update_session(session)
 
-            # Send completion event
-            yield f"data: {json.dumps({'type': 'complete', 'session_id': request.session_id})}\n\n"
+            # Send completion event (include ER data if this was an emergency response)
+            complete_payload: Dict = {
+                "type": "complete",
+                "session_id": request.session_id,
+            }
+            if final_state and final_state.get("emergency_mode"):
+                complete_payload["emergency"] = True
+                complete_payload["emergency_type"] = final_state.get("emergency_type")
+                complete_payload["er_hospitals"] = final_state.get("er_hospitals") or []
+                complete_payload["er_emergency_numbers"] = (
+                    final_state.get("er_emergency_numbers") or {}
+                )
+            yield f"data: {json.dumps(complete_payload)}\n\n"
 
         except Exception as e:
             logger.error(f"Error in event stream: {str(e)}")

@@ -11,6 +11,10 @@ class MessageRequest(BaseModel):
 
     session_id: str = Field(..., description="Session ID")
     message: str = Field(..., max_length=2000, description="User message")
+    user_location: Optional[dict] = Field(
+        None,
+        description="User GPS location {lat: float, lng: float} — required for ER hospital search",
+    )
 
 
 class StartSessionResponse(BaseModel):

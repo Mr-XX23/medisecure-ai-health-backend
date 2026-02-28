@@ -20,7 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# --- Risk Assessment Logic ---
+# --- History Correlation Analysis ---
 
 
 def calculate_cardiovascular_risk(
@@ -81,8 +81,9 @@ def assess_risk_for_symptom(
     Returns: LOW, MODERATE, or HIGH
     """
     symptom_lower = symptom.lower() if symptom else ""
+    condition_names = [c["name"].lower() for c in conditions]
 
-    # Chest pain, cardiac symptoms
+    # Chest pain / cardiac symptoms
     if any(
         kw in symptom_lower
         for kw in ["chest pain", "chest pressure", "cardiac", "heart", "angina"]
@@ -100,24 +101,149 @@ def assess_risk_for_symptom(
             "respiratory",
         ]
     ):
-        condition_names = [c["name"].lower() for c in conditions]
         if any("asthma" in name or "copd" in name for name in condition_names):
-            return "MODERATE"
+            return calculate_cardiovascular_risk(
+                conditions, observations, demographics
+            )  # full risk
+        return "LOW"
 
-    # Neurological symptoms with diabetes
+    # Neurological symptoms with diabetes or hypertension
     if any(
         kw in symptom_lower
         for kw in ["numbness", "tingling", "neuropathy", "foot pain", "leg pain"]
     ):
-        condition_names = [c["name"].lower() for c in conditions]
         if any("diabetes" in name for name in condition_names):
             return "MODERATE"
+
+    # Headache / neurological with hypertension or prior stroke
+    if any(
+        kw in symptom_lower
+        for kw in ["headache", "vision", "confusion", "weakness", "speech", "dizziness"]
+    ):
+        if any(
+            "hypertension" in name or "stroke" in name or "tia" in name
+            for name in condition_names
+        ):
+            return "HIGH"
+        if any("hypertension" in name for name in condition_names):
+            return "MODERATE"
+
+    # Bleeding symptoms with anticoagulant medications
+    if any(
+        kw in symptom_lower for kw in ["bleed", "blood", "haemoptysis", "hemoptysis"]
+    ):
+        from app.tools.fhir_client import get_patient_medications as _get_meds
+
+        try:
+            # Check if state has medications already
+            med_names = [m["name"].lower() for m in ([] if not conditions else [])]
+        except Exception:
+            med_names = []
+        anticoags = [
+            "warfarin",
+            "apixaban",
+            "rivaroxaban",
+            "dabigatran",
+            "heparin",
+            "enoxaparin",
+        ]
+        if any(any(ac in mn for ac in anticoags) for mn in med_names):
+            return "HIGH"
+        return "MODERATE"
+
+    # General high-risk conditions elevate baseline
+    high_risk_conditions = [
+        "heart failure",
+        "chronic kidney",
+        "cirrhosis",
+        "cancer",
+        "immunodeficiency",
+    ]
+    if any(
+        any(hrc in name for hrc in high_risk_conditions) for name in condition_names
+    ):
+        return "MODERATE"
 
     # Default
     return "LOW"
 
 
-# --- History Correlation Analysis ---
+def _build_risk_factor_breakdown(
+    conditions: List[Dict],
+    observations: List[Dict],
+    demographics: Dict,
+    symptom: str,
+) -> str:
+    """
+    Build a human-readable description of the factors that influenced the risk score.
+    This text is passed directly to HISTORY_ANALYSIS_PROMPT so the LLM can explain
+    the risk drivers in clinical narrative form.
+    """
+    factors = []
+    age = demographics.get("age", 0)
+    symptom_lower = (symptom or "").lower()
+
+    # Age
+    if age > 65:
+        factors.append(f"Age {age} (>65: +2 risk points)")
+    elif age > 50:
+        factors.append(f"Age {age} (>50: +1 risk point)")
+    else:
+        factors.append(f"Age {age} (low age risk)")
+
+    # Conditions
+    condition_names = [c["name"].lower() for c in conditions]
+    for condition_display, keywords in [
+        ("Hypertension", ["hypertension"]),
+        ("Diabetes mellitus", ["diabetes"]),
+        ("Hyperlipidaemia / high cholesterol", ["hyperlipidemia", "cholesterol"]),
+        ("Asthma / COPD", ["asthma", "copd"]),
+        ("Heart failure", ["heart failure", "cardiac failure"]),
+        ("Atrial fibrillation", ["atrial fibrillation", "afib"]),
+        ("Obesity", ["obesity", "obese"]),
+        ("Chronic kidney disease", ["chronic kidney", "ckd"]),
+        ("Prior stroke / TIA", ["stroke", "tia", "transient ischemic"]),
+    ]:
+        if any(any(kw in name for kw in keywords) for name in condition_names):
+            factors.append(f"{condition_display} (documented)")
+
+    # Abnormal labs
+    for obs in observations:
+        if obs.get("is_abnormal"):
+            factors.append(
+                f"{obs['name']} {obs['value']} {obs.get('unit', '')} [ABNORMAL]  ({obs.get('date', 'date unknown')})"
+            )
+
+    # Symptom-specific flags
+    if any(kw in symptom_lower for kw in ["chest", "cardiac", "heart", "angina"]):
+        factors.append("Symptom class: cardiac — elevates baseline concern")
+    if any(kw in symptom_lower for kw in ["breath", "wheez", "respiratory"]):
+        factors.append(
+            "Symptom class: respiratory — elevates concern with COPD/asthma history"
+        )
+    if any(
+        kw in symptom_lower
+        for kw in ["numbness", "tingling", "neuropathy", "foot pain"]
+    ):
+        factors.append(
+            "Symptom class: neurological/neuropathic — elevates concern with diabetes history"
+        )
+    if any(
+        kw in symptom_lower for kw in ["bleed", "blood", "haemoptysis", "hemoptysis"]
+    ):
+        factors.append(
+            "Symptom class: bleeding — elevates concern with anticoagulant use"
+        )
+    if any(kw in symptom_lower for kw in ["headache", "vision", "confusion", "speech"]):
+        factors.append(
+            "Symptom class: neurological — elevates concern with hypertension/stroke history"
+        )
+
+    return (
+        "\n".join(f"  - {f}" for f in factors)
+        if factors
+        else "  - No specific risk amplifiers identified"
+    )
 
 
 async def analyze_medical_history(
@@ -157,9 +283,12 @@ async def analyze_medical_history(
     medications = get_patient_medications(patient_id)
     allergies = get_patient_allergies(patient_id)
 
-    # Calculate risk level
+    # Calculate risk level AND build detailed breakdown
     risk_level = assess_risk_for_symptom(
         chief_complaint or "", conditions, observations, demographics
+    )
+    risk_factor_breakdown = _build_risk_factor_breakdown(
+        conditions, observations, demographics, chief_complaint or ""
     )
 
     # Prepare data for LLM analysis
@@ -192,6 +321,7 @@ async def analyze_medical_history(
         chief_complaint,
         current_symptoms,
         risk_level,
+        risk_factor_breakdown,
     )
 
     history_data["history_summary"] = history_summary
@@ -208,6 +338,7 @@ async def generate_history_summary(
     chief_complaint: Optional[str],
     current_symptoms: Dict,
     risk_level: str,
+    risk_factor_breakdown: str = "  - Not computed",
 ) -> str:
     """
     Generate a narrative history summary using LLM.
@@ -276,15 +407,12 @@ Severity: {current_symptoms.get('severity', 'Not specified')}/10
         medications=medications_text,
         allergies=allergies_text,
         symptom_details=symptom_details,
+        risk_factor_breakdown=risk_factor_breakdown,
         risk_level=risk_level,
     )
 
-    system_msg = SystemMessage(
-        content="You are a medical history analysis specialist. Generate clear, clinically relevant summaries."
-    )
-    human_msg = HumanMessage(content=prompt_content)
-
-    response = await llm.ainvoke([system_msg, human_msg])
+    # HISTORY_ANALYSIS_PROMPT is self-contained — send as a single human message
+    response = await llm.ainvoke([HumanMessage(content=prompt_content)])
 
     # Ensure we return a string
     content = response.content

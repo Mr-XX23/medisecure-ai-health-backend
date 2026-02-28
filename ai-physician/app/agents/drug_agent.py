@@ -11,7 +11,11 @@ from app.tools.drug_interactions import (
     format_interaction_for_display,
 )
 from app.config.llm_config import get_drug_model
-from app.agents.prompts import DRUG_INTERACTION_PROMPT
+from app.agents.prompts import (
+    DRUG_INTERACTION_PROMPT,
+    DRUG_INSUFFICIENT_MEDS_PROMPT,
+    DRUG_NO_INTERACTIONS_PROMPT,
+)
 from langchain_core.messages import SystemMessage, HumanMessage
 import logging
 
@@ -21,6 +25,10 @@ logger = logging.getLogger(__name__)
 async def analyze_drug_interactions(
     medications: List[str],
     user_medications: List[str] | None = None,
+    patient_age: str = "unknown",
+    patient_conditions: List[str] | None = None,
+    patient_allergies: List[str] | None = None,
+    chief_complaint: str = "",
 ) -> Dict:
     """
     Analyze medications for potential drug-drug interactions.
@@ -28,6 +36,10 @@ async def analyze_drug_interactions(
     Args:
         medications: List of current medications from medical history
         user_medications: Additional medications mentioned by user (optional)
+        patient_age: Patient age string for context-aware responses
+        patient_conditions: Known chronic conditions
+        patient_allergies: Known drug allergies
+        chief_complaint: Current symptom / reason for visit
 
     Returns:
         Dict with:
@@ -38,15 +50,34 @@ async def analyze_drug_interactions(
     """
     logger.info("Starting drug interaction analysis")
 
+    conditions_str = ", ".join(patient_conditions or []) or "none reported"
+    allergies_str = ", ".join(patient_allergies or []) or "none reported"
+
     # Combine medication lists
     all_meds = list(set(medications + (user_medications or [])))
+    llm = get_drug_model()
 
     if len(all_meds) < 2:
         logger.info("Less than 2 medications, skipping interaction check")
+        try:
+            insufficient_prompt = DRUG_INSUFFICIENT_MEDS_PROMPT.format(
+                patient_age=patient_age,
+                known_conditions=conditions_str,
+                patient_allergies=allergies_str,
+                medications_listed=", ".join(all_meds) if all_meds else "none",
+                chief_complaint=chief_complaint or "not specified",
+            )
+            resp = await llm.ainvoke([HumanMessage(content=insufficient_prompt)])
+            summary = str(resp.content) if resp.content else ""
+        except Exception as e:
+            logger.error(f"DRUG_INSUFFICIENT_MEDS_PROMPT LLM failed: {e}")
+            summary = (
+                "Please share your complete medication list (prescription, OTC, and supplements) "
+                "so I can check for any interactions."
+            )
         return {
             "interactions": [],
-            "summary": "You have fewer than 2 medications listed, so no drug interactions can occur. "
-            "If you're taking other medications, please let me know so I can check for interactions.",
+            "summary": summary,
             "has_major_interactions": False,
             "has_moderate_interactions": False,
         }
@@ -57,10 +88,25 @@ async def analyze_drug_interactions(
 
     if not interactions:
         logger.info("No interactions found")
+        try:
+            no_interaction_prompt = DRUG_NO_INTERACTIONS_PROMPT.format(
+                patient_age=patient_age,
+                known_conditions=conditions_str,
+                patient_allergies=allergies_str,
+                medications_list=", ".join(all_meds),
+                chief_complaint=chief_complaint or "not specified",
+            )
+            resp = await llm.ainvoke([HumanMessage(content=no_interaction_prompt)])
+            summary = str(resp.content) if resp.content else ""
+        except Exception as e:
+            logger.error(f"DRUG_NO_INTERACTIONS_PROMPT LLM failed: {e}")
+            summary = (
+                f"No known interactions were identified between your {len(all_meds)} medications. "
+                "Keep your pharmacist updated if any new medication is added."
+            )
         return {
             "interactions": [],
-            "summary": f"✅ Good news! I didn't find any known interactions between your {len(all_meds)} medications. "
-            "However, it's still a good idea to have your pharmacist review all your medications periodically.",
+            "summary": summary,
             "has_major_interactions": False,
             "has_moderate_interactions": False,
         }
@@ -75,7 +121,13 @@ async def analyze_drug_interactions(
 
     # Generate AI explanation
     try:
-        summary = await _generate_interaction_explanation(all_meds, interactions)
+        summary = await _generate_interaction_explanation(
+            all_meds,
+            interactions,
+            patient_age=patient_age,
+            patient_conditions=conditions_str,
+            patient_allergies=allergies_str,
+        )
     except Exception as e:
         logger.error(f"Error generating AI explanation: {e}", exc_info=True)
         # Fallback to simple formatted output
@@ -93,6 +145,9 @@ async def analyze_drug_interactions(
 async def _generate_interaction_explanation(
     medications: List[str],
     interactions: List[Dict],
+    patient_age: str = "unknown",
+    patient_conditions: str = "none reported",
+    patient_allergies: str = "none reported",
 ) -> str:
     """
     Generate a clear, patient-friendly explanation of drug interactions using LLM.
@@ -100,6 +155,9 @@ async def _generate_interaction_explanation(
     Args:
         medications: List of medication names
         interactions: List of interaction dictionaries
+        patient_age: Patient age for personalised guidance
+        patient_conditions: Known conditions (string)
+        patient_allergies: Known allergies (string)
 
     Returns:
         Plain language explanation as string
@@ -131,15 +189,13 @@ async def _generate_interaction_explanation(
     prompt = DRUG_INTERACTION_PROMPT.format(
         medications_list=meds_text,
         interaction_data=interaction_data,
+        patient_age=patient_age,
+        patient_conditions=patient_conditions,
+        patient_allergies=patient_allergies,
     )
 
-    # Get LLM response
-    system_msg = SystemMessage(
-        content="You are a medication safety assistant. Explain drug interactions clearly and safely."
-    )
-    human_msg = HumanMessage(content=prompt)
-
-    response = await llm.ainvoke([system_msg, human_msg])
+    # Get LLM response — system prompt is embedded in DRUG_INTERACTION_PROMPT itself
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
 
     return str(response.content) if response.content else ""
 

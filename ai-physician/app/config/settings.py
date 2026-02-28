@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     model_name: str = "Phi-4-mini-reasoning"
     model_temperature: float = 0.7
     model_max_tokens: int = 1000
+    llm_request_timeout: float = 30.0  # Timeout for LLM API calls in seconds
+    llm_invoke_timeout: float = 45.0  # Overall timeout including retries
 
     # JWT Configuration
     jwt_public_key_path: str = "../auth-service/src/main/resources/keys/public_key.pem"
@@ -45,10 +47,10 @@ class Settings(BaseSettings):
     fhir_auth_token: Optional[str] = None
     fhir_use_mock: bool = True  # Use mock data as fallback
 
-    # Google Maps API Configuration
-    google_maps_api_key: Optional[str] = None
+    # Serper API Configuration (Google Search API alternative)
+    serper_api_key: Optional[str] = None
     provider_search_radius_m: int = 5000  # Default search radius in meters
-    provider_search_max_results: int = 5  # Max providers to return
+    provider_search_max_results: int = 10  # Max providers to return
 
     # Safety Settings
     red_flag_keywords: str = (

@@ -85,6 +85,18 @@ class SymptomCheckState(TypedDict):
     ]  # [{place_id, name, address, lat, lng, rating, reviews, score, types, distance_km}, ...]
     provider_search_done: bool
 
+    # Emergency Response Mode (ER_NOW workflow)
+    emergency_mode: bool  # True once ER_NOW triggered — sticky for full session
+    emergency_type: Optional[str]  # e.g. "cardiac_emergency", "respiratory_emergency"
+    er_search_triggered: bool  # Prevents duplicate hospital lookup on repeat triggers
+    er_hospitals: Optional[List[dict]]  # Cached top-3 verified ER results with details
+    er_emergency_numbers: Optional[
+        dict
+    ]  # Region-specific numbers {ambulance, police, fire}
+    location_timeout: (
+        bool  # True when geolocation wasn't received within timeout window
+    )
+
     # Vaidya Supervisor Control (routing and orchestration)
     intent: Optional[
         str

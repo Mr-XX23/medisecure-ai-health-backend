@@ -32,7 +32,9 @@ _MODEL_CLINICAL = "Llama-3.3-70B-Instruct"  # Triage / Final Responder
 # ---------------------------------------------------------------------------
 def _create_model(model_name: str) -> BaseChatModel:
     """Instantiate a ChatOpenAI client pointed at the GitHub Models endpoint."""
-    logger.info(f"Creating GitHub Models client: {model_name}")
+    logger.info(
+        f"Creating GitHub Models client: {model_name} (timeout: {settings.llm_request_timeout}s)"
+    )
     return ChatOpenAI(
         base_url=settings.github_models_endpoint,
         api_key=SecretStr(settings.github_token),
@@ -40,6 +42,7 @@ def _create_model(model_name: str) -> BaseChatModel:
         temperature=settings.model_temperature,
         max_completion_tokens=settings.model_max_tokens,
         streaming=True,
+        timeout=settings.llm_request_timeout,
     )
 
 

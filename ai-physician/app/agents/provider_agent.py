@@ -6,9 +6,11 @@ and optional specialty filter. It ranks results by quality and proximity.
 
 import logging
 from typing import Dict, Any
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from app.agents.state import SymptomCheckState
+from app.agents.prompts import PROVIDER_RESPONSE_PROMPT
+from app.config.llm_config import get_final_model
 from app.tools.provider_search import (
     search_providers,
     format_provider_message,
@@ -87,33 +89,40 @@ async def provider_locator_node(state: SymptomCheckState) -> Dict[str, Any]:
 
         logger.info(f"Found {len(providers)} providers")
 
-        # Format message
-        message_content = format_provider_message(providers, provider_query)
+        # Format raw provider data for the LLM
+        raw_message = format_provider_message(providers, provider_query)
 
-        # Add context-aware footer based on triage if available
-        classification = state.get("classification")
-        footer = ""
+        # Synthesise a clinical response via LLM using full patient context
+        classification = state.get("classification", "GP_SOON")
+        urgency_score = state.get("urgency_score", 5)
+        chief_complaint = state.get("chief_complaint", "not specified")
+        user_location_label = (
+            user_location.get("city")
+            or user_location.get("address")
+            or f"{lat:.3f}, {lng:.3f}"
+        )
 
-        if classification == "ER_NOW":
-            footer = (
-                "\n\n⚠️ **Important**: Based on your symptoms, you should seek "
-                "emergency care immediately. If you're experiencing a medical emergency, "
-                "call your local emergency number (911 in the US) or go to the nearest "
-                "emergency room."
+        try:
+            llm = get_final_model()
+            provider_prompt = PROVIDER_RESPONSE_PROMPT.format(
+                triage_classification=classification,
+                chief_complaint=chief_complaint,
+                patient_location=user_location_label,
+                urgency_score=urgency_score,
+                provider_data=raw_message,
             )
-        elif classification == "GP_24H":
-            footer = (
-                "\n\n📞 It's recommended to contact one of these providers within 24 hours "
-                "to discuss your symptoms and schedule an appointment if needed."
+            llm_response = await llm.ainvoke([HumanMessage(content=provider_prompt)])
+            message_content = (
+                llm_response.content
+                if isinstance(llm_response.content, str)
+                else str(llm_response.content)
             )
-        elif classification == "GP_SOON":
-            footer = (
-                "\n\n📅 Consider scheduling an appointment with one of these providers "
-                "in the next few days to address your symptoms."
-            )
+        except Exception as llm_err:
+            logger.error(f"Provider LLM synthesis failed: {llm_err}")
+            message_content = raw_message  # graceful degradation
 
         return {
-            "messages": [AIMessage(content=message_content + footer)],
+            "messages": [AIMessage(content=message_content)],
             "nearby_providers": providers,
             "provider_search_done": True,
             "status_events": status_events,

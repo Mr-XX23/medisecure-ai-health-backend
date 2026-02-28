@@ -107,7 +107,7 @@ class AssessmentService:
 
 
 # Global service instance
-_assessment_service: AssessmentService = None
+_assessment_service: Optional[AssessmentService] = None
 
 
 def get_assessment_service() -> AssessmentService:

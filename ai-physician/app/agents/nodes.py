@@ -4,8 +4,10 @@ from app.agents.state import SymptomCheckState
 from app.agents.prompts import (
     GREETING_PROMPT,
     ANALYZE_INPUT_PROMPT,
-    EMERGENCY_PROMPT,
+    ER_RESPONSE_PROMPT,
+    ER_FOLLOWUP_PROMPT,
     ASSESSMENT_PROMPT,
+    ASSESSMENT_FALLBACK_PROMPT,
     TRIAGE_PROMPT,
     RECOMMENDATION_PROMPT,
     SYMPTOM_ANALYST_SYSTEM_PROMPT,
@@ -19,7 +21,6 @@ from app.agents.preventive_chronic_agent import (
 )
 from app.agents.drug_agent import (
     analyze_drug_interactions,
-    should_check_interactions,
 )
 from app.utils.red_flags import detect_red_flags, get_red_flag_description
 from app.config.llm_config import (
@@ -91,7 +92,19 @@ async def greeting_node(state: SymptomCheckState) -> dict:
 
     system_msg = SystemMessage(
         content=SYMPTOM_ANALYST_SYSTEM_PROMPT.format(
-            stage="greeting", golden_4_complete=False
+            stage="greeting",
+            golden_4_complete=False,
+            chief_complaint=state.get("chief_complaint") or "not yet identified",
+            location=state.get("location") or "not yet identified",
+            duration=state.get("duration") or "not yet identified",
+            severity=state.get("severity") or "not yet identified",
+            triage_classification=state.get("classification") or "not yet determined",
+            emergency_mode=state.get("emergency_mode", False),
+            emergency_type=state.get("emergency_type") or "none",
+            red_flags=state.get("red_flags_detected") or [],
+            known_conditions=state.get("chronic_conditions") or [],
+            current_medications=state.get("current_medications") or [],
+            patient_age=state.get("age") or "unknown",
         )
     )
 
@@ -144,7 +157,12 @@ async def analyze_input_node(state: SymptomCheckState) -> dict:
                     "should_continue": True,
                 }
         except ValueError:
-            numbers = re.findall(r"\b([1-9]|10)\b", latest_message)
+            latest_msg_str = (
+                latest_message
+                if isinstance(latest_message, str)
+                else str(latest_message)
+            )
+            numbers = re.findall(r"\b([1-9]|10)\b", latest_msg_str)
             if numbers:
                 severity = int(numbers[0])
                 logger.info(f"Extracted severity from text: {severity}")
@@ -292,25 +310,29 @@ async def red_flag_check_node(state: SymptomCheckState) -> dict:
 
 
 async def emergency_node(state: SymptomCheckState) -> dict:
-    """Handle emergency situations with immediate ER recommendation."""
+    """Handle emergency situations: set emergency flags and route to ER Emergency Agent."""
     logger.info(f"Emergency node activated for session: {state['session_id']}")
 
-    # Llama-3.3-70B - Triage: safety-critical emergency response accuracy
-    llm = get_triage_model()
+    red_flags = state.get("red_flags_detected", [])
+    # Use the first detected red flag category as the emergency type
+    emergency_type = red_flags[0] if red_flags else "medical_emergency"
 
-    red_flag_descriptions = [
-        get_red_flag_description(cat) for cat in state["red_flags_detected"]
-    ]
+    logger.warning(
+        f"ER_NOW triggered: emergency_type={emergency_type}, flags={red_flags}"
+    )
 
-    prompt = EMERGENCY_PROMPT.format(red_flags=", ".join(red_flag_descriptions))
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
-
+    # Set all emergency flags. The ER Emergency Agent node will run next
+    # (graph edge: emergency → er_emergency → final_responder).
+    # We do NOT generate an LLM response here — final_responder_node handles synthesis.
     return {
-        "messages": [response],
         "classification": "ER_NOW",
         "urgency_score": 10,
+        "golden_4_complete": True,  # Bypass Golden 4 collection
+        "emergency_mode": True,
+        "emergency_type": emergency_type,
         "current_stage": "complete",
-        "should_continue": False,
+        "should_continue": True,
+        "status_events": [],  # STATUS:EMERGENCY_DETECTED is emitted by er_emergency_node
     }
 
 
@@ -368,20 +390,28 @@ async def gather_info_node(state: SymptomCheckState) -> dict:
         question_type = "ASK_TRIGGERS"
         question_prompt = "What makes your symptoms worse?"
 
-    # IMPORTANT: System message is mandatory — without it the LLM interprets the
-    # question_prompt as the patient asking IT about its own sensations.
+    # IMPORTANT: The question template must live in the SystemMessage, NOT in the
+    # HumanMessage.  If it is placed in a HumanMessage, small models like
+    # Phi-4-mini interpret "Where are you experiencing the chest pain?" as the
+    # patient asking the AI about its own body and reply with
+    # "I'm an AI, I don't have a physical body…".
     gather_system = SystemMessage(
         content=(
             "You are Vaidya, an AI primary care physician assistant conducting a structured "
-            "clinical interview. You are about to ask the PATIENT the question below. "
-            "Rephrase it in a professional, medically clear tone. "
-            "Keep it to 1-2 sentences. Do NOT answer the question yourself — "
-            "output only the question directed at the patient. "
-            "Do NOT open with acknowledgment phrases like 'I understand', 'Thank you for sharing', "
-            "'Great', 'Of course', or any other filler — go straight to the question."
+            "clinical interview. Your task is to ask the patient the following clinical question:\n\n"
+            f'"{question_prompt}"\n\n'
+            "Rephrase it in a warm, professional tone directed at the PATIENT. "
+            "Output only the rephrased question (1-2 sentences). "
+            "Do NOT answer it. Do NOT speak about yourself. "
+            "Do NOT open with filler phrases like 'I understand', 'Thank you', 'Of course', etc."
         )
     )
-    response = await llm.ainvoke([gather_system, HumanMessage(content=question_prompt)])
+    response = await llm.ainvoke(
+        [
+            gather_system,
+            HumanMessage(content="Ask the patient the next clinical question."),
+        ]
+    )
 
     logger.info(f"Asking question type: {question_type}, collected fields: {collected}")
 
@@ -528,11 +558,45 @@ async def assessment_node(state: SymptomCheckState) -> dict:
         }
     except json.JSONDecodeError:
         logger.error(f"Failed to parse assessment response: {response.content}")
-        return {
-            "differential_diagnosis": ["Unable to assess"],
-            "current_stage": "triaging",
-            "should_continue": True,
-        }
+        # Use LLM fallback instead of a static string
+        try:
+            fallback_prompt = ASSESSMENT_FALLBACK_PROMPT.format(
+                chief_complaint=state.get("chief_complaint", "unknown symptom"),
+                symptom_details=(
+                    f"Location: {state.get('location', 'not specified')}, "
+                    f"Duration: {state.get('duration', 'not specified')}, "
+                    f"Severity: {state.get('severity', 'not specified')}/10, "
+                    f"Triggers: {state.get('triggers', 'not specified')}"
+                ),
+                patient_age=state.get("age", "unknown"),
+                known_conditions=", ".join(state.get("chronic_conditions", []))
+                or "none reported",
+                current_medications=", ".join(state.get("current_medications", []))
+                or "none reported",
+                severity_clues=f"Severity {state.get('severity', '?')}/10, Red flags: {', '.join(state.get('red_flags_detected', [])) or 'none'}",
+            )
+            fallback_response = await llm.ainvoke(
+                [HumanMessage(content=fallback_prompt)]
+            )
+            fallback_text = (
+                fallback_response.content
+                if isinstance(fallback_response.content, str)
+                else str(fallback_response.content)
+            )
+            return {
+                "differential_diagnosis": [fallback_text],
+                "current_stage": "triaging",
+                "should_continue": True,
+            }
+        except Exception as fallback_err:
+            logger.error(f"Assessment fallback LLM also failed: {fallback_err}")
+            return {
+                "differential_diagnosis": [
+                    "Assessment temporarily unavailable — please consult a healthcare professional."
+                ],
+                "current_stage": "triaging",
+                "should_continue": True,
+            }
 
 
 async def triage_node(state: SymptomCheckState) -> dict:
@@ -587,9 +651,26 @@ async def triage_node(state: SymptomCheckState) -> dict:
         }
     except json.JSONDecodeError:
         logger.error(f"Failed to parse triage response: {response.content}")
+        # Derive a safety-minded default from severity rather than blindly returning GP_SOON
+        try:
+            severity_raw = state.get("severity", "5")
+            severity_val = float(str(severity_raw).split("/")[0].strip())
+        except (ValueError, TypeError):
+            severity_val = 5.0
+        red_flags = state.get("red_flags_detected", [])
+        if red_flags or severity_val >= 8:
+            safe_class, safe_score = "ER_SOON", 8
+        elif severity_val >= 6:
+            safe_class, safe_score = "GP_24H", 6
+        else:
+            safe_class, safe_score = "GP_SOON", 5
+        logger.warning(
+            f"Triage parse failed — using severity-derived fallback: "
+            f"{safe_class} (severity={severity_val}, red_flags={len(red_flags)})"
+        )
         return {
-            "classification": "GP_SOON",
-            "urgency_score": 5,
+            "classification": safe_class,
+            "urgency_score": safe_score,
             "current_stage": "recommendation",
             "should_continue": True,
         }
@@ -777,6 +858,10 @@ async def drug_interaction_node(state: SymptomCheckState) -> dict:
         result = await analyze_drug_interactions(
             medications=current_medications,
             user_medications=med_list_from_user,
+            patient_age=str(state.get("age", "unknown")),
+            patient_conditions=state.get("chronic_conditions", []),
+            patient_allergies=state.get("allergies", []),
+            chief_complaint=state.get("chief_complaint") or "",
         )
 
         interactions = result.get("interactions", [])
@@ -903,16 +988,207 @@ async def save_assessment_node(state: SymptomCheckState) -> dict:
     return {"current_stage": "complete", "should_continue": False}
 
 
+# ─── Emergency response immediate actions by category ────────────────────────
+_EMERGENCY_ACTIONS = {
+    "cardiac_emergency": [
+        "Call ambulance immediately — do not drive yourself.",
+        "If prescribed, take aspirin (325 mg) unless allergic.",
+        "Sit or lie down in the position that feels most comfortable.",
+        "Loosen tight clothing around your chest and neck.",
+        "Unlock your front door so paramedics can enter.",
+        "Stay on the phone with emergency services.",
+    ],
+    "respiratory_emergency": [
+        "Call ambulance immediately.",
+        "Sit upright — do NOT lie down.",
+        "Loosen anything tight around your chest or neck.",
+        "If you have a prescribed inhaler, use it now.",
+        "Stay calm and breathe slowly through your nose.",
+    ],
+    "neurological_emergency": [
+        "Call ambulance immediately — do NOT wait to see if it improves.",
+        "Do NOT give the person food, water, or medication.",
+        "If they lose consciousness, lay them on their side.",
+        "Note the exact time symptoms started — tell paramedics.",
+        "Stay with the person until help arrives.",
+    ],
+    "psychiatric_emergency": [
+        "Call emergency services or a crisis line immediately.",
+        "Stay with the person — do not leave them alone.",
+        "Remove access to harmful objects if safely possible.",
+        "Speak calmly — do not argue or lecture.",
+    ],
+    "trauma_emergency": [
+        "Call ambulance immediately.",
+        "Apply firm pressure to bleeding wounds with a clean cloth.",
+        "Do NOT remove objects embedded in wounds.",
+        "Keep the person still — do not move them if spinal injury possible.",
+    ],
+    "abdominal_emergency": [
+        "Call ambulance immediately.",
+        "Do NOT eat or drink anything.",
+        "Lie still in the position that gives the most comfort.",
+        "Do not take pain medication until assessed by a doctor.",
+    ],
+    "allergic_emergency": [
+        "Call ambulance immediately.",
+        "If prescribed, use your EpiPen (epinephrine auto-injector) now.",
+        "Sit upright to ease breathing — do NOT lie flat.",
+        "Take an antihistamine only if you can swallow safely.",
+        "Remove yourself from the allergen if possible.",
+    ],
+    # Generic fallback — used when emergency_type is unknown or unclassified
+    "medical_emergency": [
+        "Call ambulance immediately.",
+        "Stay with the person and keep them calm.",
+        "Do not give food, water, or medication unless told to by emergency services.",
+        "Monitor breathing and consciousness.",
+        "Stay on the phone with emergency services until help arrives.",
+    ],
+}
+
+_EMERGENCY_TYPE_LABELS = {
+    "cardiac_emergency": "Cardiac Emergency (Possible Heart Attack)",
+    "respiratory_emergency": "Respiratory Emergency",
+    "neurological_emergency": "Neurological Emergency (Possible Stroke / Head Emergency)",
+    "psychiatric_emergency": "Psychiatric Emergency",
+    "trauma_emergency": "Trauma / Bleeding Emergency",
+    "abdominal_emergency": "Abdominal Emergency",
+    "allergic_emergency": "Severe Allergic Reaction (Anaphylaxis)",
+    "medical_emergency": "Medical Emergency",
+}
+
+
+async def _handle_emergency_response(state: SymptomCheckState) -> dict:
+    """
+    Handle all ER_NOW responses.
+
+    Sub-case A (first ER response, er_emergency_node just ran):
+        STATUS:EMERGENCY_DETECTED present in status_events → use ER_RESPONSE_PROMPT
+        with real hospital data.
+
+    Sub-case B (follow-up message in emergency mode):
+        STATUS:EMERGENCY_DETECTED NOT in status_events → use ER_FOLLOWUP_PROMPT
+        for first-aid / reassurance guidance.
+    """
+    from app.tools.er_search import format_er_hospitals_for_prompt
+
+    llm = get_final_model()
+    session_id = state.get("session_id", "unknown")
+
+    emergency_type = state.get("emergency_type") or "medical_emergency"
+    emergency_type_label = _EMERGENCY_TYPE_LABELS.get(
+        emergency_type, "Medical Emergency"
+    )
+    current_status_events = state.get("status_events") or []
+
+    # Determine which sub-case we're in
+    is_first_response = "STATUS:EMERGENCY_DETECTED" in current_status_events
+
+    # ─── Sub-case B: Follow-up message ───────────────────────────────────────
+    if not is_first_response:
+        logger.info(f"Emergency follow-up response for session {session_id}")
+        latest_message = ""
+        for msg in reversed(state.get("messages", [])):
+            if isinstance(msg, HumanMessage):
+                latest_message = (
+                    msg.content if isinstance(msg.content, str) else str(msg.content)
+                )
+                break
+
+        prompt = ER_FOLLOWUP_PROMPT.format(
+            emergency_type=emergency_type_label,
+            user_message=latest_message or "No message provided",
+        )
+        try:
+            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            content = (
+                response.content
+                if isinstance(response.content, str)
+                else str(response.content)
+            )
+        except Exception as e:
+            logger.error(f"ER follow-up LLM failed: {e}")
+            content = (
+                "Stay calm — help is on the way. Keep the phone line open with emergency services "
+                "and follow their instructions. Do not move unless the emergency responder tells you to."
+            )
+        return {
+            "messages": [AIMessage(content=content)],
+            "current_stage": "complete",
+            "should_continue": False,
+        }
+
+    # ─── Sub-case A: First ER response ───────────────────────────────────────
+    logger.info(
+        f"First ER response for session {session_id}, emergency_type={emergency_type}"
+    )
+
+    er_hospitals = state.get("er_hospitals") or []
+    er_emergency_numbers = state.get("er_emergency_numbers") or {
+        "ambulance": "112",
+        "police": "112",
+        "fire": "112",
+        "general": "112",
+    }
+    location_timeout = state.get("location_timeout", False)
+
+    er_data = format_er_hospitals_for_prompt(er_hospitals, er_emergency_numbers)
+    immediate_actions = _EMERGENCY_ACTIONS.get(
+        emergency_type, _EMERGENCY_ACTIONS["medical_emergency"]
+    )
+    immediate_actions_text = "\n".join(f"- {a}" for a in immediate_actions)
+    ambulance_number = er_emergency_numbers.get("ambulance", "112")
+
+    location_note = ""
+    if location_timeout:
+        location_note = (
+            "\n\n📍 Location could not be determined automatically. "
+            "Hospital search may be unavailable — call ambulance immediately."
+        )
+
+    prompt = ER_RESPONSE_PROMPT.format(
+        emergency_type=emergency_type,
+        emergency_type_label=emergency_type_label,
+        er_data=er_data + location_note,
+        immediate_actions=immediate_actions_text,
+        ambulance_number=ambulance_number,
+    )
+
+    try:
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        content = (
+            response.content
+            if isinstance(response.content, str)
+            else str(response.content)
+        )
+    except Exception as e:
+        logger.error(f"ER response LLM failed: {e}")
+        # Hard-coded fallback — never leave user with nothing
+        content = (
+            f"🚨 EMERGENCY — {emergency_type_label}\n\n"
+            f"CALL AMBULANCE NOW: {ambulance_number}\n\n"
+            f"WHAT TO DO RIGHT NOW:\n"
+            + immediate_actions_text
+            + "\n\n⚠️ This is AI guidance only. Call emergency services immediately."
+        )
+
+    return {
+        "messages": [AIMessage(content=content)],
+        "current_stage": "complete",
+        "should_continue": False,
+    }
+
+
 async def final_responder_node(state: SymptomCheckState) -> dict:
     """
     Final Responder: Synthesizes all specialist agent findings into a comprehensive response.
 
-    This node:
-    1. Gathers results from all completed agents
-    2. Uses LLM to synthesize a clear, actionable response
-    3. Prioritizes by urgency (emergency > immediate > routine)
-    4. Includes appropriate disclaimers
-    5. Marks workflow as complete
+    When emergency_mode=True this node handles two sub-cases:
+      1. First ER response: STATUS:EMERGENCY_DETECTED in current status_events
+         → uses ER_RESPONSE_PROMPT with hospital data from er_emergency_node
+      2. Follow-up ER message: sticky emergency mode, supervisor routed here directly
+         → uses ER_FOLLOWUP_PROMPT for reassurance/first-aid guidance
 
     Args:
         state: Current state with all agent results
@@ -923,6 +1199,10 @@ async def final_responder_node(state: SymptomCheckState) -> dict:
     logger.info(
         f"🎬 Final Responder: Synthesizing comprehensive response for session {state['session_id']}"
     )
+
+    # ─── EMERGENCY MODE: ER_NOW handling ─────────────────────────────────────────────
+    if state.get("emergency_mode") or state.get("classification") == "ER_NOW":
+        return await _handle_emergency_response(state)
 
     try:
         # Llama-3.3-70B - Final Responder: clinically accurate, clearly worded patient output
@@ -962,15 +1242,7 @@ async def final_responder_node(state: SymptomCheckState) -> dict:
             else str(response.content)
         )
 
-        # Add urgency banner if needed
-        classification = state.get("classification")
-        if classification == "ER_NOW":
-            final_message = (
-                "🚨 **SEEK EMERGENCY CARE IMMEDIATELY** 🚨\n\n" + final_message
-            )
-        elif classification == "GP_24H":
-            final_message = "⚠️ **See a doctor within 24 hours** ⚠️\n\n" + final_message
-
+        # Urgency framing is now fully handled by FINAL_RESPONDER_PROMPT — no banner injection needed
         logger.info("Final response synthesized successfully")
 
         return {
@@ -1152,10 +1424,12 @@ def _generate_fallback_response(state: SymptomCheckState) -> str:
     classification = state.get("classification")
     if classification:
         urgency_map = {
-            "ER_NOW": "🚨 Seek emergency care immediately",
-            "GP_24H": "⚠️ See a doctor within 24 hours",
-            "GP_SOON": "Schedule an appointment within 1-2 weeks",
-            "HOME": "Monitor at home, seek care if symptoms worsen",
+            "ER_NOW": "🚨 Call emergency services NOW — this cannot wait",
+            "ER_SOON": "🚨 Go to the ER or urgent care within the next few hours",
+            "GP_24H": "⚠️ See a doctor today or within 24 hours",
+            "GP_SOON": "Schedule a GP appointment within the next few days",
+            "SELF_CARE": "Manage at home; see a doctor if symptoms worsen or do not improve",
+            "MONITOR": "Monitor closely; seek care if new symptoms develop",
         }
         parts.append(
             f"**Urgency:** {urgency_map.get(classification, 'Consult a healthcare provider')}\n"

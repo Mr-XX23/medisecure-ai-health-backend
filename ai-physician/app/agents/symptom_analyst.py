@@ -25,10 +25,10 @@ from app.agents.nodes import (
 from app.agents.vaidya_supervisor import (
     vaidya_supervisor_node,
     vaidya_questioner_node,
-    should_continue_workflow,
     route_to_next_agent,
 )
 from app.agents.provider_agent import provider_locator_node
+from app.agents.er_emergency_agent import er_emergency_node
 import logging
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,7 @@ def build_vaidya_graph():
     workflow.add_node("preventive_chronic", preventive_chronic_node)
     workflow.add_node("drug_interaction", drug_interaction_node)
     workflow.add_node("provider_locator", provider_locator_node)
+    workflow.add_node("er_emergency", er_emergency_node)  # ER hospital search
 
     # Final nodes
     workflow.add_node("final_responder", final_responder_node)
@@ -127,6 +128,7 @@ def build_vaidya_graph():
             "preventive_chronic": "preventive_chronic",
             "drug_interaction": "drug_interaction",
             "provider_locator": "provider_locator",
+            "er_emergency": "er_emergency",
             "vaidya_questioner": "vaidya_questioner",
             "final_responder": "final_responder",
             "end": END,
@@ -144,8 +146,9 @@ def build_vaidya_graph():
         {"emergency": "emergency", "gather_info": "gather_info"},
     )
 
-    # emergency → final_responder (for urgent care instructions)
-    workflow.add_edge("emergency", "final_responder")
+    # emergency → er_emergency → final_responder (ER hospital search + synthesis)
+    workflow.add_edge("emergency", "er_emergency")
+    workflow.add_edge("er_emergency", "final_responder")
 
     # gather_info checks if Golden 4 is complete
     workflow.add_conditional_edges(
