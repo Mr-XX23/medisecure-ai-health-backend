@@ -8,8 +8,8 @@ import logging
 from typing import Dict, Any
 from langchain_core.messages import AIMessage, HumanMessage
 
-from app.agents.state import SymptomCheckState
-from app.agents.prompts import PROVIDER_RESPONSE_PROMPT
+from app.agents.common.state import VaidyaState
+from app.agents.sub_agents.provider.prompts import PROVIDER_RESPONSE_PROMPT
 from app.config.llm_config import get_final_model
 from app.tools.provider_search import (
     search_providers,
@@ -19,7 +19,7 @@ from app.tools.provider_search import (
 logger = logging.getLogger(__name__)
 
 
-async def provider_locator_node(state: SymptomCheckState) -> Dict[str, Any]:
+async def provider_locator_node(state: VaidyaState) -> Dict[str, Any]:
     """Locate nearby healthcare providers based on user location and preferences.
 
     This node:

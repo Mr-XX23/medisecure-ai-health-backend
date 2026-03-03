@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     # GitHub Models API
     github_token: str
     github_models_endpoint: str = "https://models.inference.ai.azure.com"
-    model_name: str = "Phi-4-mini-reasoning"
-    model_temperature: float = 0.7
-    model_max_tokens: int = 1000
+    model_name: str = "meta/Meta-Llama-3.1-8B-Instruct"
+    model_temperature: float = 0.2
+    model_max_tokens: int = 4000
     llm_request_timeout: float = 30.0  # Timeout for LLM API calls in seconds
     llm_invoke_timeout: float = 45.0  # Overall timeout including retries
 

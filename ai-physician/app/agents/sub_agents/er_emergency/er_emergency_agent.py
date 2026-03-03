@@ -15,13 +15,13 @@ import asyncio
 import logging
 from typing import Dict, Any
 
-from app.agents.state import SymptomCheckState
+from app.agents.common.state import VaidyaState
 from app.tools.er_search import search_er_hospitals, get_regional_emergency_numbers
 
 logger = logging.getLogger(__name__)
 
 
-async def er_emergency_node(state: SymptomCheckState) -> Dict[str, Any]:
+async def er_emergency_node(state: VaidyaState) -> Dict[str, Any]:
     """
     ER Emergency Agent node.
 
@@ -30,7 +30,7 @@ async def er_emergency_node(state: SymptomCheckState) -> Dict[str, Any]:
     so that final_responder can include real, actionable ER recommendations.
 
     Args:
-        state: Current SymptomCheckState (must have emergency_mode=True)
+        state: Current VaidyaState (must have emergency_mode=True)
 
     Returns:
         State update with er_hospitals, er_emergency_numbers, er_search_triggered

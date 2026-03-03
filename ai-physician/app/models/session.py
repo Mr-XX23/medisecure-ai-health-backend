@@ -1,7 +1,7 @@
 """MongoDB schema for symptom sessions."""
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Any
 from datetime import datetime
 from app.models.triage import SessionStatus, TriageClassification
 import uuid
@@ -22,10 +22,17 @@ class SymptomsData(BaseModel):
     chief_complaint: Optional[str] = None
     location: Optional[str] = None
     duration: Optional[str] = None
-    severity: Optional[int] = Field(default=None, ge=1, le=10)
+    severity: Optional[str] = None
     triggers: Optional[str] = None
     relievers: Optional[str] = None
     associated_symptoms: List[str] = Field(default_factory=list)
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def coerce_severity(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
 
 
 class TriageData(BaseModel):
@@ -36,7 +43,14 @@ class TriageData(BaseModel):
     red_flags: List[str] = Field(default_factory=list)
     differential_diagnosis: List[str] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
-    urgency_score: Optional[int] = Field(default=None, ge=1, le=10)
+    urgency_score: Optional[str] = None
+
+    @field_validator("urgency_score", mode="before")
+    @classmethod
+    def coerce_urgency(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
 
 
 class AgentStateData(BaseModel):
@@ -76,6 +90,7 @@ class AgentStateData(BaseModel):
 
     # Context management
     conversation_summary: Optional[str] = None  # Clinical summary for long sessions
+    summarized_message_count: int = 0          # Number of messages already included in summary
 
     # Emergency Response Mode (persisted so sticky mode survives reconnects)
     emergency_mode: bool = False

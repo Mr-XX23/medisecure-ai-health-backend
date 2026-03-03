@@ -11,7 +11,7 @@ from app.tools.drug_interactions import (
     format_interaction_for_display,
 )
 from app.config.llm_config import get_drug_model
-from app.agents.prompts import (
+from app.agents.sub_agents.drug.prompts import (
     DRUG_INTERACTION_PROMPT,
     DRUG_INSUFFICIENT_MEDS_PROMPT,
     DRUG_NO_INTERACTIONS_PROMPT,

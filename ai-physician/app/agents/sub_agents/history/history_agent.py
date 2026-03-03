@@ -346,7 +346,7 @@ async def generate_history_summary(
     This creates a clinically relevant summary that explains how
     the patient's history relates to their current symptoms.
     """
-    from app.agents.prompts import HISTORY_ANALYSIS_PROMPT
+    from app.agents.sub_agents.history.prompts import HISTORY_ANALYSIS_PROMPT
 
     # Llama-4-Scout-17B - History Analysis: structured FHIR -> narrative clinical context
     llm = get_history_model()

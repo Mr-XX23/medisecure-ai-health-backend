@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 from app.config.llm_config import get_preventive_model
-from app.agents.prompts import PREVENTIVE_CHRONIC_PROMPT
+from app.agents.sub_agents.preventive_chronic.prompts import PREVENTIVE_CHRONIC_PROMPT
 from langchain_core.messages import SystemMessage, HumanMessage
 import json
 import logging

@@ -17,11 +17,17 @@ class MessageRequest(BaseModel):
     )
 
 
+class StartSessionRequest(BaseModel):
+    """Request to start a new session."""
+
+    message: Optional[str] = Field(None, description="Initial user message (optional)")
+
+
 class StartSessionResponse(BaseModel):
     """Response when starting a new session."""
 
     session_id: str
-    message: str
+    message: Optional[str] = None
     status: str
 
 

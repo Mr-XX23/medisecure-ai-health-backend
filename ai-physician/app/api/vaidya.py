@@ -11,11 +11,12 @@ handles all healthcare interactions by routing to specialized sub-agents:
 Vaidya orchestrates the entire conversation and determines the best agent for each request.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from app.api.dependencies import get_current_user
 from app.models.messages import (
     StartSessionResponse,
+    StartSessionRequest,
     MessageRequest,
     SessionDetailsResponse,
     AssessmentHistoryResponse,
@@ -26,8 +27,9 @@ from app.models.messages import (
 from app.models.triage import SessionStatus
 from app.services.session_service import get_session_service
 from app.services.assessment_service import get_assessment_service
-from app.agents.symptom_analyst import get_vaidya_graph
-from app.agents.state import SymptomCheckState
+from app.agents.graph import get_vaidya_graph
+from app.agents.common.state import VaidyaState
+from app.agents.common.state import create_initial_state
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from typing import Dict
 from datetime import datetime
@@ -62,15 +64,13 @@ router = APIRouter(prefix="/api/v1/vaidya", tags=["Vaidya"])
 
 
 @router.post("/start", response_model=StartSessionResponse)
-async def start_session(current_user: Dict[str, str] = Depends(get_current_user)):
+async def start_session(
+    background_tasks: BackgroundTasks,
+    request: StartSessionRequest = None,
+    current_user: Dict[str, str] = Depends(get_current_user),
+):
     """
     Start a new Vaidya session.
-
-    Requires JWT authentication.
-    Returns session ID and initial greeting message.
-
-    Vaidya is the root supervisor agent that will intelligently route to
-    specialized sub-agents as needed based on your requests.
     """
     session_service = get_session_service()
 
@@ -79,103 +79,17 @@ async def start_session(current_user: Dict[str, str] = Depends(get_current_user)
         user_id=current_user["userId"], user_email=current_user["email"]
     )
 
-    # Get the Vaidya-orchestrated multi-agent graph
-    graph = get_vaidya_graph()
-
-    # Initialize state
-    initial_state: SymptomCheckState = {
-        "messages": [],
-        "conversation_summary": None,
-        "message_count": 0,
-        "user_id": current_user["userId"],
-        "user_email": current_user["email"],
-        "session_id": session.session_id,
-        "chief_complaint": None,
-        "location": None,
-        "duration": None,
-        "severity": None,
-        "triggers": None,
-        "relievers": None,
-        "associated_symptoms": [],
-        "current_stage": "greeting",
-        "questions_asked": 0,
-        "golden_4_complete": False,
-        "red_flags_detected": [],
-        "classification": None,
-        "differential_diagnosis": [],
-        "recommendations": [],
-        "urgency_score": None,
-        "patient_id": None,
-        "history_summary": None,
-        "chronic_conditions": [],
-        "recent_labs": [],
-        "current_medications": [],
-        "allergies": [],
-        "risk_level": None,
-        "history_analyzed": False,
-        "preventive_recommendations": [],
-        "chronic_care_plans": [],
-        "preventive_care_analyzed": False,
-        "age": None,
-        "sex": None,
-        "med_list_from_user": [],
-        "interaction_results": [],
-        "interaction_check_done": False,
-        "user_location": None,
-        "provider_query": None,
-        "nearby_providers": [],
-        "provider_search_done": False,
-        # Emergency Response Mode
-        "emergency_mode": False,
-        "emergency_type": None,
-        "er_search_triggered": False,
-        "er_hospitals": [],
-        "er_emergency_numbers": None,
-        "location_timeout": False,
-        "intent": None,
-        "next_agent": None,
-        "active_workflows": [],
-        "pending_questions": [],
-        "status_events": [],
-        "last_error": None,
-        "tool_failures": [],
-        "should_continue": True,
-        "error": None,
-        "last_question_type": None,
-        "collected_fields": [],
-    }
-
-    # Run greeting node
-    try:
-        result = await graph.ainvoke(initial_state)
-
-        # Extract greeting message
-        greeting_msg = None
-        if result.get("messages"):
-            last_msg = result["messages"][-1]
-            if isinstance(last_msg, AIMessage):
-                content = last_msg.content
-                greeting_msg = content if isinstance(content, str) else str(content)
-
-        # Save greeting message to session
-        if greeting_msg:
-            await session_service.add_message(
-                session_id=session.session_id, role="assistant", content=greeting_msg
-            )
-
-        return StartSessionResponse(
-            session_id=session.session_id,
-            message=greeting_msg
-            or "Hello! I'm Vaidya, your AI health assistant. I can help with symptom checking, finding healthcare providers, reviewing medications, and more. How can I assist you today?",
-            status="active",
+    # If an initial message is provided, save it to the session
+    if request and request.message:
+        await session_service.add_message(
+            session_id=session.session_id, role="user", content=request.message
         )
 
-    except Exception as e:
-        logger.error(f"Error starting session: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start session: {str(e)}",
-        )
+    return StartSessionResponse(
+        session_id=session.session_id,
+        message=None,
+        status="active",
+    )
 
 
 @router.post("/message")
@@ -226,27 +140,11 @@ async def send_message(
     # Load agent state from session to preserve progress
     agent_state = session.agent_state
 
-    # Apply conversation summary context window to limit LLM token pressure.
-    # When the session has a stored summary (set by summarization_node) and the
-    # raw message history is long, trim to last 10 messages and prepend the
-    # clinical summary as a SystemMessage instead of sending the full history.
-    stored_summary = getattr(agent_state, "conversation_summary", None)
-    if stored_summary and len(messages) > 12:
-        summary_sys_msg = SystemMessage(
-            content=f"[Clinical Summary of Prior Conversation]\n\n{stored_summary}"
-        )
-        tail = messages[-10:]  # last 5 exchanges
-        messages = [summary_sys_msg] + tail
-        logger.info(
-            f"Applied context window for session {request.session_id}: "
-            f"summary + {len(tail)} recent messages (was {len(session.messages) + 1})"
-        )
-
-    state: SymptomCheckState = {
+    # The context window and summarization are now handled within the LangGraph via the summarization_node and summarized_message_count logic.
+    state: VaidyaState = {
         "messages": messages,
-        "conversation_summary": getattr(
-            agent_state, "conversation_summary", None
-        ),  # persist summary across turns
+        "conversation_summary": agent_state.conversation_summary,
+        "summarized_message_count": agent_state.summarized_message_count,
         "message_count": len(messages),
         "user_id": session.user_id,
         "user_email": session.user_email,
@@ -347,8 +245,10 @@ async def send_message(
             # Define internal nodes that should NEVER stream output to frontend
             # These nodes only update state and make routing decisions
             SILENT_NODES = {
-                "vaidya",  # Vaidya supervisor routing decisions
+                "vaidya",  # Legacy name
+                "supervisor",  # Vaidya supervisor routing decisions
                 "analyze_input",  # Symptom data extraction
+                "symptom_analysis", # Symptom analyst extraction (added to prevent JSON leak)
                 "red_flag_check",  # Emergency flag detection
                 "emergency",  # Emergency flag setting (no LLM output)
                 "er_emergency",  # ER hospital search (no LLM output — only state + status events)
@@ -667,6 +567,10 @@ async def send_message(
                     if final_state.get("conversation_summary") is not None:
                         session.agent_state.conversation_summary = final_state.get(
                             "conversation_summary"
+                        )
+                    if final_state.get("summarized_message_count") is not None:
+                        session.agent_state.summarized_message_count = int(
+                            final_state.get("summarized_message_count", 0)
                         )
 
                     # Log what's being saved for verification
